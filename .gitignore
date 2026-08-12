@@ -1,0 +1,64 @@
+# Ignore dataset contents, but allow placeholders
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+data/annotations/*
+!data/annotations/.gitkeep
+
+data/classifier/*
+!data/classifier/.gitkeep
+
+data/external_test/*
+!data/external_test/.gitkeep
+
+# Generated results
+outputs/
+reports/
+
+# Model checkpoints
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.ckpt
+
+# Large archives and media
+*.zip
+*.tar
+*.gz
+*.mp4
+*.mov
+*.avi
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing and tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+
+# Operating system
+.DS_Store
+Thumbs.db
