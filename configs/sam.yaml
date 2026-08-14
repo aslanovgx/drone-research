@@ -1,3 +1,15 @@
+preprocessing:
+  strategy: "tiling"   # statik training şəkilləri üçün default
+  resize_max_dim: 1536
+  tiling:
+    tile_size: 1536
+    overlap: 256
+    iou_threshold: 0.7
+
+video:
+  frame_interval: 30   # 30fps videoda ~1 frame/saniyə
+  strategy: "resize"    # video frame-lər həmişə resize ilə gedir
+
 model:
   type: "sam2.1_hiera_small"   # It might change
   checkpoint_path: "checkpoints/sam2.1_hiera_small.pt"
