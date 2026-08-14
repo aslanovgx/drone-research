@@ -1,0 +1,14 @@
+model:
+  type: "sam2.1_hiera_small"   # It might change
+  checkpoint_path: "checkpoints/sam2.1_hiera_small.pt"
+  config_path: "configs/sam2.1/sam2.1_hiera_s.yaml"
+
+mask_filter:
+  min_area: 500
+  min_stability_score: 0.9
+  min_predicted_iou: 0.85
+
+output:
+  crops_dir: "outputs/crops"
+  json_path: "outputs/segmentation_results.json"
+  crop_size: [224, 224]
