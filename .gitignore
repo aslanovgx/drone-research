@@ -1,0 +1,24 @@
+# Model checkpoints
+*.pth
+*.pt
+checkpoints/
+
+# Raw images and outputs
+data/raw/
+outputs/
+*.jpg
+*.jpeg
+*.png
+!docs/**/*.png
+
+# Environment
+venv/
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+
+# Python
+*.egg-info/
+sam2_repo/
