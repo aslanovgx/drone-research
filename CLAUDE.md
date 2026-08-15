@@ -27,9 +27,25 @@ Class + Confidence → Visualization
 ## Progress Log
 (update this section as work happens — most recent entries at the top)
 
-### 2026-08-15 — feature/classifier — status: in progress
-Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
-.gitignore seeded.
+### 2026-08-15 — feature/classifier — status: code complete, PR blocked
+Classifier stage (SAM crop → class + confidence) implemented end to end. Repo
+initialized here (`main` → `develop` → `feature/classifier`); there was no
+existing git history.
+
+**Blocker:** no git remote is configured and the `gh` CLI is not installed on
+this machine, so the branch could not be pushed and the PR
+(feature/classifier → develop) could not be opened. Everything else is done and
+verified. The PR body is drafted in `docs/pr_classifier.md` — add a remote,
+push, and open the PR with it.
+
+**How to run:**
+```
+python scripts/generate_sample_crops.py --config configs/classifier.yaml
+python src/classification/train.py
+python src/classification/inference.py outputs/crops/segment_17.png
+```
+
+**Delivered:**
 - [x] `docs/annotation_guidelines.md` — per-class rules, edge-case table, and the
       `data/classifier/{train,validation}/<class>/` layout. Decision: a single
       **50% area-dominance rule** resolves mixed crops, and road/paved surfaces
@@ -64,4 +80,11 @@ Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
       Decision: `segment_id` is parsed with the regex `segment_(\d+)` so
       scene-prefixed names still work, and is `None` (not an error) when the
       filename doesn't follow the convention.
-Next: open PR feature/classifier → develop.
+
+**Verified before PR:** clean-state rerun — generator → 3-epoch train run →
+checkpoint saved → inference returns the required JSON shape; `git status` clean
+with `data/`, `outputs/` and `checkpoints/` ignored.
+
+**Next:** push `feature/classifier` and open the PR; then label real SAM crops
+per `docs/annotation_guidelines.md`, delete the synthetic placeholders, retrain,
+and revisit the `road` class once SAM's fragmented road masks are fixed.
