@@ -42,4 +42,10 @@ Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
       (building=0, car=1, other=2, tree=3) so train and inference cannot drift
       apart if the config's class order changes. Vertical flips are included in
       augmentation because drone crops have no canonical orientation.
-Next: model.py, configs/classifier.yaml, train.py, inference.py.
+- [x] `src/classification/model.py` — `build_model(num_classes, backbone)`.
+      Decision: **MobileNetV3-Small** as default backbone (~1.5M trainable
+      params vs ResNet18's ~11M) because the classifier runs once per SAM mask,
+      i.e. hundreds of times per frame; ResNet18 stays selectable via config for
+      a later accuracy comparison. Pretrained-weight download failures degrade to
+      random init with a warning so offline smoke tests still run.
+Next: configs/classifier.yaml, train.py, inference.py.
