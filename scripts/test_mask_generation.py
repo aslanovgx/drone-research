@@ -16,6 +16,9 @@ from segmentation.mask_filter import (
     print_filter_breakdown
 )
 
+from segmentation.bbox_extractor import export_segments
+
+
 
 def show_masks_overlay(image, masks, output_path, max_masks=None):
     """
@@ -318,3 +321,28 @@ for area_threshold in [500, 1000, 1500, 3000, 5000]:
         f"min_area={area_threshold:5d} "
         f"-> {len(test_filtered):4d} masks"
     )
+
+# --------------------------------------------------
+# 9. EXPORT SEGMENTS AND CROPS
+# --------------------------------------------------
+
+print()
+print("=" * 60)
+print("EXPORTING SEGMENTS & CROPS")
+print("=" * 60)
+
+crops_dir = config.get("output", {}).get("crops_dir", "outputs/crops")
+json_path = config.get("output", {}).get("json_path", "outputs/segmentation_results.json")
+
+crop_source_image = cv2.imread(image_path)
+crop_source_image = cv2.cvtColor(crop_source_image, cv2.COLOR_BGR2RGB)
+
+exported_results = export_segments(
+    crop_source_image,
+    filtered,
+    crops_dir=crops_dir,
+    json_path=json_path
+)
+
+print(f"Exported {len(exported_results)} segments to {json_path}")
+print(f"Crops saved in: {crops_dir}")

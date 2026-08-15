@@ -199,6 +199,34 @@ class TestTilingPipeline(unittest.TestCase):
             os.remove(out_crop_path)
 
     # -------------------------------------------------------------------------
+    # Test 10: Merged mask bbox/area correctness
+    # -------------------------------------------------------------------------
+    def test_10_merged_mask_bbox_and_area_correctness(self):
+        seg1 = np.ones((50, 50), dtype=bool)
+        m1 = {
+            "segmentation": seg1,
+            "bbox": [100, 100, 50, 50],
+            "mask_offset": (100, 100),
+            "area": 2500,
+            "predicted_iou": 0.9,
+            "stability_score": 0.9,
+        }
+        seg2 = np.ones((50, 50), dtype=bool)
+        m2 = {
+            "segmentation": seg2,
+            "bbox": [130, 100, 50, 50],
+            "mask_offset": (130, 100),
+            "area": 2500,
+            "predicted_iou": 0.95,
+            "stability_score": 0.95,
+        }
+        merged = merge_two_masks(m1, m2)
+        self.assertEqual(merged["bbox"], [100, 100, 80, 50])
+        self.assertEqual(merged["area"], 4000)
+        self.assertEqual(merged["area"], int(merged["segmentation"].sum()))
+        self.assertTrue(merged["is_merged"])
+
+    # -------------------------------------------------------------------------
     # Test 11: Merged boundary object is preserved
     # -------------------------------------------------------------------------
     def test_11_merged_boundary_object_preserved(self):
@@ -219,7 +247,6 @@ class TestTilingPipeline(unittest.TestCase):
     # Test 12: Unrelated internal tile-edge artifact is rejected
     # -------------------------------------------------------------------------
     def test_12_unrelated_tile_edge_artifact_rejected(self):
-        # Mask at local x=0 in a tile that starts at x_offset=1280 (internal tile boundary)
         artifact_mask = {
             "segmentation": np.ones((50, 50), dtype=bool),
             "bbox": [1280, 500, 50, 50],
@@ -236,7 +263,6 @@ class TestTilingPipeline(unittest.TestCase):
     # Test 13: Image-border object is preserved
     # -------------------------------------------------------------------------
     def test_13_image_border_object_preserved(self):
-        # Mask at outer image left border (x=0, image_w=3000)
         img_border_mask = {
             "segmentation": np.ones((50, 50), dtype=bool),
             "bbox": [0, 500, 50, 50],
@@ -265,7 +291,50 @@ class TestTilingPipeline(unittest.TestCase):
         res = filter_boundary_artifacts([interior_mask], image_shape=(3000, 3000))
         self.assertEqual(len(res), 1)
 
+    # -------------------------------------------------------------------------
+    # Test 15: Export segments JSON format and crop generation
+    # -------------------------------------------------------------------------
+    def test_15_export_segments_json_format(self):
+        from segmentation.bbox_extractor import export_segments
+        import json
+
+        dummy_img = np.ones((1000, 1000, 3), dtype=np.uint8) * 200
+        masks = [{
+            "segmentation": np.ones((50, 50), dtype=bool),
+            "bbox": [120, 85, 240, 190],
+            "mask_offset": (120, 85),
+            "area": 32840,
+            "predicted_iou": 0.94,
+            "stability_score": 0.96,
+        }]
+
+        crops_dir = "outputs/test_crops"
+        json_path = "outputs/test_segmentation_results.json"
+
+        results = export_segments(dummy_img, masks, crops_dir=crops_dir, json_path=json_path)
+
+        self.assertEqual(len(results), 1)
+        item = results[0]
+
+        # Verify exact required keys
+        self.assertEqual(item["segment_id"], 0)
+        self.assertEqual(item["bbox"], [120, 85, 240, 190])
+        self.assertEqual(item["area"], 32840)
+        self.assertEqual(item["sam_score"], 0.94)
+        self.assertEqual(item["crop_path"], "outputs/test_crops/segment_0.png")
+
+        self.assertTrue(os.path.exists(json_path))
+        self.assertTrue(os.path.exists("outputs/test_crops/segment_0.png"))
+
+        # Clean up test output
+        if os.path.exists(json_path):
+            os.remove(json_path)
+        if os.path.exists("outputs/test_crops/segment_0.png"):
+            os.remove("outputs/test_crops/segment_0.png")
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
