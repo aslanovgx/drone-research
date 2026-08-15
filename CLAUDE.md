@@ -34,4 +34,7 @@ Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
       `data/classifier/{train,validation}/<class>/` layout. Decision: a single
       **50% area-dominance rule** resolves mixed crops, and road/paved surfaces
       fall into `other` until the `road` class is introduced.
-Next: temporary synthetic sample crops, then dataset/model/config/train/inference.
+- [x] `scripts/generate_sample_crops.py` — writes ~8 synthetic PNGs per class per
+      split into `data/classifier/`. Decision: commit the *generator*, never the
+      crops, so the smoke test is reproducible on any machine.
+Next: dataset.py, model.py, configs/classifier.yaml, train.py, inference.py.
