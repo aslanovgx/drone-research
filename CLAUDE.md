@@ -58,4 +58,10 @@ Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
       `classes`, `backbone` and `image_size` alongside the weights so inference
       never silently drifts from a changed config.
       Smoke test: 3 epochs on the synthetic crops, loss 1.44 → 0.50, no errors.
-Next: inference.py, then verification + PR.
+- [x] `src/classification/inference.py` — `predict()` / `classify_crop()` +
+      CLI. Verified on `outputs/crops/segment_17.png`:
+      `{"segment_id": 17, "class": "building", "confidence": 0.53}`.
+      Decision: `segment_id` is parsed with the regex `segment_(\d+)` so
+      scene-prefixed names still work, and is `None` (not an error) when the
+      filename doesn't follow the convention.
+Next: open PR feature/classifier → develop.
