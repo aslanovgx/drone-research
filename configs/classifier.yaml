@@ -1,0 +1,39 @@
+# Configuration for the classifier stage of the drone imagery pipeline.
+# train.py and inference.py read everything from here — nothing is hardcoded.
+# Paths are relative to the repository root.
+
+# Target classes. `road` is intentionally excluded for now (see
+# docs/annotation_guidelines.md); road-like crops are labelled `other`.
+# Label indices are derived from the SORTED list, not the order below:
+#   building=0, car=1, other=2, tree=3
+classes:
+  - building
+  - tree
+  - car
+  - other
+
+data:
+  dataset_root: data/classifier   # contains <train_split>/ and <validation_split>/
+  train_split: train
+  validation_split: validation
+  image_size: 224                 # square crop size fed to the backbone
+  num_workers: 0                  # 0 is the safe default on Windows / small sets
+
+model:
+  backbone: mobilenet_v3_small    # or: resnet18
+  pretrained: true                # load ImageNet weights
+
+training:
+  epochs: 3
+  batch_size: 16
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  optimizer: adamw                # adamw | adam
+  seed: 42
+  device: auto                    # auto | cpu | cuda
+
+checkpoint:
+  path: checkpoints/classifier.pt # gitignored
+
+inference:
+  confidence_decimals: 2          # rounding applied to the reported confidence
