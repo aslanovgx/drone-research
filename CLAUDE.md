@@ -37,4 +37,9 @@ Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
 - [x] `scripts/generate_sample_crops.py` — writes ~8 synthetic PNGs per class per
       split into `data/classifier/`. Decision: commit the *generator*, never the
       crops, so the smoke test is reproducible on any machine.
-Next: dataset.py, model.py, configs/classifier.yaml, train.py, inference.py.
+- [x] `src/classification/dataset.py` — `CropDataset` + `create_dataloaders()`.
+      Decision: label indices derive from the **sorted** class list
+      (building=0, car=1, other=2, tree=3) so train and inference cannot drift
+      apart if the config's class order changes. Vertical flips are included in
+      augmentation because drone crops have no canonical orientation.
+Next: model.py, configs/classifier.yaml, train.py, inference.py.
