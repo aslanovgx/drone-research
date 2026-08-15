@@ -14,15 +14,36 @@ data/classifier/*
 data/external_test/*
 !data/external_test/.gitkeep
 
+# Dataset manifests: text-only image lists and split definitions that make a
+# development subset reproducible. Imagery here is still ignored.
+data/manifests/*
+!data/manifests/.gitkeep
+!data/manifests/*.json
+!data/manifests/*.csv
+!data/manifests/*.txt
+!data/manifests/*.md
+
 # Generated results
 outputs/
 reports/
+
+# Temporary/synthetic sample crops used only to exercise the pipeline
+**/sample_crops/**
+**/_tmp_crops/**
 
 # Model checkpoints
 models/*.pt
 models/*.pth
 models/*.onnx
 models/*.ckpt
+
+# Checkpoints written by src/classification/train.py, plus a catch-all so no
+# weights file can be committed from anywhere in the tree.
+checkpoints/
+*.pt
+*.pth
+*.onnx
+*.ckpt
 
 # Large archives and media
 *.zip
@@ -36,6 +57,7 @@ models/*.ckpt
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
 
 # Virtual environments
 .venv/
