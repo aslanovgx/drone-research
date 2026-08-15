@@ -11,7 +11,6 @@ from segmentation.sam_model import (
 )
 
 from segmentation.mask_filter import (
-    compute_solidity,
     filter_masks_from_config,
     print_filter_stats,
     print_filter_breakdown
@@ -90,7 +89,7 @@ def show_masks_overlay(image, masks, output_path, max_masks=None):
 
     cv2.imwrite(output_path, overlay)
 
-    print(f"Overlay saxlanıldı: {output_path}")
+    print(f"Overlay saved: {output_path}")
 
 
 def print_mask_statistics(masks, name="Masks"):
@@ -99,8 +98,9 @@ def print_mask_statistics(masks, name="Masks"):
     """
 
     if not masks:
-        print(f"{name}: heç bir mask yoxdur.")
+        print(f"{name}: no masks found.")
         return
+
 
     areas = np.array([
         m["area"]
@@ -216,63 +216,25 @@ print("=" * 60)
 print("MASK GENERATION")
 print("=" * 60)
 
-print(f"Tapılan mask sayı: {len(masks)}")
+print(f"Total masks found: {len(masks)}")
 
 if len(masks) > 0:
-    print("İlk mask açarları:", masks[0].keys())
-    print("İlk mask sahəsi:", masks[0]["area"])
-    print("İlk mask shape:", masks[0]["segmentation"].shape)
-    print("İlk mask offset:", masks[0]["mask_offset"])
-    print("İlk mask bbox:", masks[0]["bbox"])
+    print("First mask keys:", list(masks[0].keys()))
+    print("First mask area:", masks[0]["area"])
+    print("First mask shape:", masks[0]["segmentation"].shape)
+    print("First mask offset:", masks[0]["mask_offset"])
+    print("First mask bbox:", masks[0]["bbox"])
 
-# --------------------------------------------------
-# 4.1 SOLIDITY DIAGNOSTICS
-# --------------------------------------------------
-
-print()
-print("=" * 60)
-print("SOLIDITY DIAGNOSTICS")
-print("=" * 60)
-
-for m in masks:
-    m["solidity"] = compute_solidity(m)
-
-import numpy as np
-
-solidities = np.array([
-    m["solidity"]
-    for m in masks
-])
-
-if len(solidities) > 0:
-
-    print(f"Min:    {solidities.min():.3f}")
-    print(f"Max:    {solidities.max():.3f}")
-    print(f"Mean:   {solidities.mean():.3f}")
-    print(f"Median: {np.median(solidities):.3f}")
-
-    print()
-    print(
-        f"Solidity > 0.92: "
-        f"{np.sum(solidities > 0.92)} masks"
-    )
-
-    print(
-        f"Solidity > 0.95: "
-        f"{np.sum(solidities > 0.95)} masks"
-    )
-
-    print(
-        f"Solidity > 0.98: "
-        f"{np.sum(solidities > 0.98)} masks"
-    )
 # --------------------------------------------------
 # 5. FILTER MASKS
 # --------------------------------------------------
 
+img_shape = image.shape[:2]
+
 filtered = filter_masks_from_config(
     masks,
-    config
+    config,
+    image_shape=img_shape
 )
 
 print()
@@ -289,7 +251,11 @@ print_filter_breakdown(
     min_area=config["mask_filter"]["min_area"],
     min_stability_score=config["mask_filter"]["min_stability_score"],
     min_predicted_iou=config["mask_filter"]["min_predicted_iou"],
+    reject_tile_edge=config["mask_filter"].get("reject_tile_edge", False),
+    edge_tolerance=config["mask_filter"].get("edge_tolerance", 2),
+    image_shape=img_shape,
 )
+
 
 # --------------------------------------------------
 # 6. STATISTICS

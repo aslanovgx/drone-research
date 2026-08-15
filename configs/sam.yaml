@@ -19,7 +19,9 @@ mask_filter:
   min_area: 1500 #500
   min_stability_score: 0.9
   min_predicted_iou: 0.85
-  max_solidity: 0.92
+
+  reject_tile_edge: true
+  edge_tolerance: 2
 
 output:
   crops_dir: "outputs/crops"
