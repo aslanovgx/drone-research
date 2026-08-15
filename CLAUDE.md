@@ -30,5 +30,8 @@ Class + Confidence → Visualization
 ### 2026-08-15 — feature/classifier — status: in progress
 Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
 .gitignore seeded.
-Next: docs/annotation_guidelines.md, then the classifier stage
-(dataset/model/train/inference + configs/classifier.yaml).
+- [x] `docs/annotation_guidelines.md` — per-class rules, edge-case table, and the
+      `data/classifier/{train,validation}/<class>/` layout. Decision: a single
+      **50% area-dominance rule** resolves mixed crops, and road/paved surfaces
+      fall into `other` until the `road` class is introduced.
+Next: temporary synthetic sample crops, then dataset/model/config/train/inference.
