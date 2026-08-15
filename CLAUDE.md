@@ -48,4 +48,14 @@ Repo initialized (`main` → `develop` → `feature/classifier`). CLAUDE.md and
       i.e. hundreds of times per frame; ResNet18 stays selectable via config for
       a later accuracy comparison. Pretrained-weight download failures degrade to
       random init with a warning so offline smoke tests still run.
-Next: configs/classifier.yaml, train.py, inference.py.
+- [x] `configs/classifier.yaml` — classes, dataset root/splits, image size,
+      backbone, hyperparameters, checkpoint path, inference rounding.
+- [x] `src/classification/config.py` — shared YAML loader + device resolver, so
+      train and inference don't import each other.
+- [x] `src/classification/train.py` — AdamW + CrossEntropyLoss loop, per-epoch
+      train loss and validation accuracy, best-val checkpoint to
+      `checkpoints/classifier.pt` (gitignored). Decision: the checkpoint carries
+      `classes`, `backbone` and `image_size` alongside the weights so inference
+      never silently drifts from a changed config.
+      Smoke test: 3 epochs on the synthetic crops, loss 1.44 → 0.50, no errors.
+Next: inference.py, then verification + PR.
