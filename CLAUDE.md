@@ -81,10 +81,44 @@ python src/classification/inference.py outputs/crops/segment_17.png
       scene-prefixed names still work, and is `None` (not an error) when the
       filename doesn't follow the convention.
 
-**Verified before PR:** clean-state rerun — generator → 3-epoch train run →
-checkpoint saved → inference returns the required JSON shape; `git status` clean
-with `data/`, `outputs/` and `checkpoints/` ignored.
+- [x] Integration hardening for `feature/integration` (Mustafa's pipeline):
+      `predict_many()` / `classify_crops()` load the checkpoint once and batch
+      the forward passes instead of reloading per crop; `segment_id` can be
+      passed explicitly so the pipeline needn't rely on filename parsing; empty
+      crop lists return `[]` without loading the model; the public API is
+      exported from `classification/__init__.py`. Modules switched to relative
+      imports (PEP 366 bootstrap for script runs) so they work as
+      `classification.*`, `src.classification.*` **and** as direct scripts —
+      this removes the need to settle the src-layout question before merging.
+      `.gitignore` now allows text manifests under `data/manifests/` so the
+      preprocessing task can commit reproducible image lists; imagery there is
+      still ignored.
 
-**Next:** push `feature/classifier` and open the PR; then label real SAM crops
-per `docs/annotation_guidelines.md`, delete the synthetic placeholders, retrain,
-and revisit the `road` class once SAM's fragmented road masks are fixed.
+**Verified before PR:** clean-state rerun — generator → 3-epoch train run →
+checkpoint saved → single and batch inference return the required JSON shape;
+all three import layouts import successfully; `git status` clean with `data/`,
+`outputs/` and `checkpoints/` ignored, and `git check-ignore` confirming
+manifests are the only exception.
+
+**Next:** push `feature/classifier` and open the PR (see the blocker above).
+
+**Team coordination — open items owned elsewhere:**
+- **Masked vs. plain bbox crops** (`feature/sam-segmentation`). If crops arrive
+  background-zeroed, the 50%-dominance/mixed-content/occlusion rules in the
+  annotation guidelines need revising and the ImageNet normalisation statistics
+  shift. Recommendation: plain bbox crops, mask saved separately. Decide before
+  bulk labelling.
+- **Nobody owns the labelling itself.** It is the project's critical path and is
+  absent from all three teammate task specs. Needs an owner, a per-class target
+  (a few hundred crops each is a sane start), and a double-labelled overlap
+  sample to check the guidelines actually produce annotator agreement.
+- **Checkpoint distribution.** `checkpoints/classifier.pt` is gitignored, so the
+  end-to-end pipeline needs an agreed source for the weights (release artifact or
+  shared drive).
+- **Class list ownership.** `classes` is duplicated between `classifier.yaml` and
+  whatever the visualization stage uses for label colours; it should have one
+  home.
+
+Then: label real SAM crops per `docs/annotation_guidelines.md`, delete the
+synthetic placeholders, retrain, and revisit the `road` class once SAM's
+fragmented road masks are fixed.

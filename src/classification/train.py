@@ -24,12 +24,15 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-if __package__ in (None, ""):  # allow `python src/classification/train.py` without PYTHONPATH
+if __package__ in (None, ""):
+    # Direct script run (`python src/classification/train.py`): put `src` on the path
+    # and declare the package so the relative imports below resolve (PEP 366).
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "classification"
 
-from classification.config import DEFAULT_CONFIG_PATH, load_config, resolve_device
-from classification.dataset import create_dataloaders, index_to_class
-from classification.model import build_model, count_trainable_parameters
+from .config import DEFAULT_CONFIG_PATH, load_config, resolve_device
+from .dataset import create_dataloaders, index_to_class
+from .model import build_model, count_trainable_parameters
 
 
 def set_seed(seed: int) -> None:

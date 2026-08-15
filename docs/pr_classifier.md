@@ -24,6 +24,37 @@ until SAM's fragmented road masks are resolved; road-like crops fall into
 | `src/classification/inference.py` | Single-crop prediction + CLI |
 | `configs/classifier.yaml` | All classes, paths and hyperparameters |
 
+## Integration surface (for `feature/integration`)
+
+The classifier output matches the agreed contract exactly:
+
+```json
+{"segment_id": 17, "class": "building", "confidence": 0.92}
+```
+
+Classify every crop of one frame, loading the checkpoint once:
+
+```python
+from classification import predict_many
+
+predictions = predict_many(crop_paths, segment_ids=segment_ids)
+```
+
+- `segment_ids` is optional — ids are parsed from `segment_<id>.png` filenames
+  when omitted — but the pipeline should pass them explicitly, since it already
+  holds the SAM metadata and shouldn't depend on a naming convention.
+- An empty crop list returns `[]` without loading the model, so frames where SAM
+  finds nothing cost nothing and cannot crash.
+- For a long-lived process, call `load_classifier()` once and then
+  `classify_crops()` per frame.
+- `predict()` remains for one-off single-crop use; it reloads the checkpoint each
+  call.
+- Modules use relative imports, so they work as `classification.*`, as
+  `src.classification.*`, and as directly executed scripts. The pipeline can pick
+  either layout without changes here.
+- Masked (alpha-channel) crops are flattened via `convert("RGB")`. See the open
+  question below.
+
 ## Key design decisions
 
 - **MobileNetV3-Small as the default backbone.** The classifier runs once per SAM
@@ -68,6 +99,17 @@ python src/classification/inference.py outputs/crops/segment_17.png
 Accuracy figures from this run are meaningless — the crops are synthetic shapes.
 The purpose is that the loop runs, converges on separable input, and saves a
 loadable checkpoint.
+
+## Open question for the team
+
+**Masked crops or plain bounding-box crops?** `feature/sam-segmentation` says
+"masked image crops". The annotation guidelines in this PR assume crops carry
+*surrounding context* — the 50% dominance rule, the "mixed content" category and
+the occlusion cases all presuppose that other objects can appear in the crop. If
+crops arrive background-zeroed, several of those rules become dead letters, and
+black padding also shifts the ImageNet normalisation statistics the backbone
+expects. Recommendation: emit plain bbox crops and save the mask separately.
+This needs deciding before bulk labelling starts, since it changes the rules.
 
 ## Follow-ups (not in this PR)
 

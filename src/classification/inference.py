@@ -22,17 +22,22 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Optional, TypedDict
+from typing import Any, Optional, Sequence, TypedDict
 
 import torch
 from PIL import Image
 
-if __package__ in (None, ""):  # allow `python src/classification/inference.py` without PYTHONPATH
+if __package__ in (None, ""):
+    # Direct script run (`python src/classification/inference.py`): put `src` on the
+    # path and declare the package so the relative imports below resolve (PEP 366).
+    # Relative imports keep the module importable as `classification.inference` and
+    # as `src.classification.inference`, whichever layout the pipeline settles on.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "classification"
 
-from classification.config import DEFAULT_CONFIG_PATH, load_config, resolve_device
-from classification.dataset import build_transforms, index_to_class
-from classification.model import build_model
+from .config import DEFAULT_CONFIG_PATH, load_config, resolve_device
+from .dataset import build_transforms, index_to_class
+from .model import build_model
 
 # Matches segment_17.png and prefixed variants such as scene3_segment_17.png.
 SEGMENT_ID_PATTERN = re.compile(r"segment_(\d+)", re.IGNORECASE)
@@ -107,7 +112,19 @@ def load_classifier(
     return model, classes, image_size
 
 
-@torch.no_grad()
+def _load_crop_tensor(crop_path: Path, transform: Any) -> torch.Tensor:
+    """Read one crop and apply the inference transforms.
+
+    Raises:
+        FileNotFoundError: If the crop does not exist.
+    """
+    if not crop_path.is_file():
+        raise FileNotFoundError(f"Crop not found: {crop_path}")
+    with Image.open(crop_path) as image:
+        # convert("RGB") also flattens the alpha channel of masked SAM crops.
+        return transform(image.convert("RGB"))
+
+
 def classify_crop(
     crop_path: str | Path,
     model: torch.nn.Module,
@@ -115,6 +132,7 @@ def classify_crop(
     image_size: int,
     device: torch.device,
     confidence_decimals: int = 2,
+    segment_id: int | None = None,
 ) -> Prediction:
     """Classify one crop with an already-loaded model.
 
@@ -125,6 +143,9 @@ def classify_crop(
         image_size: Crop size the model was trained on.
         device: Device the model lives on.
         confidence_decimals: Decimal places for the reported confidence.
+        segment_id: Explicit id, used in place of parsing the filename. Callers
+            that already hold the SAM metadata should pass it rather than relying
+            on the ``segment_<id>`` naming convention.
 
     Returns:
         A :class:`Prediction` with ``segment_id``, ``class`` and ``confidence``.
@@ -132,43 +153,137 @@ def classify_crop(
     Raises:
         FileNotFoundError: If the crop does not exist.
     """
-    path = Path(crop_path)
-    if not path.is_file():
-        raise FileNotFoundError(f"Crop not found: {path}")
+    return classify_crops(
+        [crop_path],
+        model=model,
+        classes=classes,
+        image_size=image_size,
+        device=device,
+        confidence_decimals=confidence_decimals,
+        segment_ids=None if segment_id is None else [segment_id],
+    )[0]
+
+
+@torch.no_grad()
+def classify_crops(
+    crop_paths: Sequence[str | Path],
+    model: torch.nn.Module,
+    classes: list[str],
+    image_size: int,
+    device: torch.device,
+    confidence_decimals: int = 2,
+    segment_ids: Sequence[int | None] | None = None,
+    batch_size: int = 32,
+) -> list[Prediction]:
+    """Classify many crops with one loaded model, batching the forward passes.
+
+    This is the entry point for the pipeline: SAM emits hundreds of crops per
+    frame, and classifying them one at a time wastes both the model load and the
+    batch dimension.
+
+    Args:
+        crop_paths: Paths to the crops, in the order results should be returned.
+        model: Model in eval mode, as returned by :func:`load_classifier`.
+        classes: Class names ordered by label index.
+        image_size: Crop size the model was trained on.
+        device: Device the model lives on.
+        confidence_decimals: Decimal places for the reported confidence.
+        segment_ids: Explicit ids parallel to ``crop_paths``. When omitted, each
+            id is parsed from its filename.
+        batch_size: Number of crops per forward pass.
+
+    Returns:
+        One :class:`Prediction` per input path, in input order. An empty input
+        returns an empty list.
+
+    Raises:
+        FileNotFoundError: If any crop does not exist.
+        ValueError: If ``segment_ids`` is given but its length differs from
+            ``crop_paths``.
+    """
+    paths = [Path(path) for path in crop_paths]
+    if not paths:
+        return []
+    if segment_ids is not None and len(segment_ids) != len(paths):
+        raise ValueError(f"segment_ids has {len(segment_ids)} entries but {len(paths)} crops were given.")
 
     # Validation transforms — no augmentation at inference time.
     transform = build_transforms(image_size, train=False)
-    with Image.open(path) as image:
-        tensor = transform(image.convert("RGB")).unsqueeze(0).to(device)
+    predictions: list[Prediction] = []
 
-    probabilities = torch.softmax(model(tensor), dim=1).squeeze(0)
-    index = int(probabilities.argmax().item())
+    for start in range(0, len(paths), batch_size):
+        chunk = paths[start : start + batch_size]
+        batch = torch.stack([_load_crop_tensor(path, transform) for path in chunk]).to(device)
+        probabilities = torch.softmax(model(batch), dim=1)
 
-    return {
-        "segment_id": parse_segment_id(path),
-        "class": classes[index],
-        "confidence": round(float(probabilities[index].item()), confidence_decimals),
-    }
+        for offset, path in enumerate(chunk):
+            index = int(probabilities[offset].argmax().item())
+            explicit_id = segment_ids[start + offset] if segment_ids is not None else None
+            predictions.append(
+                {
+                    "segment_id": explicit_id if explicit_id is not None else parse_segment_id(path),
+                    "class": classes[index],
+                    "confidence": round(float(probabilities[offset, index].item()), confidence_decimals),
+                }
+            )
+
+    return predictions
 
 
 def predict(
     crop_path: str | Path,
     config: dict[str, Any] | None = None,
     checkpoint_path: str | Path | None = None,
+    segment_id: int | None = None,
 ) -> Prediction:
     """Classify one crop, loading the model from the configured checkpoint.
 
-    Convenience wrapper for one-off calls; batch callers should use
-    :func:`load_classifier` once and then :func:`classify_crop` per crop.
+    Convenience wrapper for one-off calls. It reloads the checkpoint on every
+    call, so callers classifying more than a handful of crops should use
+    :func:`predict_many`, or :func:`load_classifier` plus :func:`classify_crops`.
 
     Args:
         crop_path: Path to the crop image.
         config: Parsed config; loaded from the default path when omitted.
         checkpoint_path: Overrides ``checkpoint.path`` from the config.
+        segment_id: Explicit id, used in place of parsing the filename.
 
     Returns:
         A :class:`Prediction` for the crop.
     """
+    return predict_many(
+        [crop_path],
+        config=config,
+        checkpoint_path=checkpoint_path,
+        segment_ids=None if segment_id is None else [segment_id],
+    )[0]
+
+
+def predict_many(
+    crop_paths: Sequence[str | Path],
+    config: dict[str, Any] | None = None,
+    checkpoint_path: str | Path | None = None,
+    segment_ids: Sequence[int | None] | None = None,
+) -> list[Prediction]:
+    """Classify a batch of crops, loading the checkpoint exactly once.
+
+    The intended entry point for the pipeline: hand it every crop SAM produced
+    for one frame and get one prediction per crop back, in input order.
+
+    Args:
+        crop_paths: Paths to the crops.
+        config: Parsed config; loaded from the default path when omitted.
+        checkpoint_path: Overrides ``checkpoint.path`` from the config.
+        segment_ids: Explicit ids parallel to ``crop_paths``; parsed from the
+            filenames when omitted.
+
+    Returns:
+        One :class:`Prediction` per input path. An empty input returns an empty
+        list without loading the model.
+    """
+    if not crop_paths:
+        return []
+
     config = config if config is not None else load_config()
     device = resolve_device(str(config.get("training", {}).get("device", "auto")))
 
@@ -179,26 +294,37 @@ def predict(
         fallback_backbone=str(config.get("model", {}).get("backbone", "mobilenet_v3_small")),
         fallback_image_size=int(config.get("data", {}).get("image_size", 224)),
     )
-    return classify_crop(
-        crop_path,
+    return classify_crops(
+        crop_paths,
         model=model,
         classes=classes,
         image_size=image_size,
         device=device,
         confidence_decimals=int(config.get("inference", {}).get("confidence_decimals", 2)),
+        segment_ids=segment_ids,
     )
 
 
 def main() -> None:
     """CLI entry point: print the prediction for one crop as JSON."""
     parser = argparse.ArgumentParser(description="Classify a single SAM crop.")
-    parser.add_argument("crop", type=Path, help="Path to a crop, e.g. outputs/crops/segment_17.png")
+    parser.add_argument("crops", type=Path, nargs="+", help="Crop paths, e.g. outputs/crops/segment_17.png")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="Path to classifier.yaml")
     parser.add_argument("--checkpoint", type=Path, default=None, help="Override checkpoint.path from the config")
+    parser.add_argument("--segment-id", type=int, default=None, help="Explicit id; only valid for a single crop")
     args = parser.parse_args()
 
-    prediction = predict(args.crop, config=load_config(args.config), checkpoint_path=args.checkpoint)
-    print(json.dumps(prediction))
+    if args.segment_id is not None and len(args.crops) > 1:
+        parser.error("--segment-id can only be used with a single crop.")
+
+    predictions = predict_many(
+        args.crops,
+        config=load_config(args.config),
+        checkpoint_path=args.checkpoint,
+        segment_ids=None if args.segment_id is None else [args.segment_id],
+    )
+    # One JSON object for a single crop, a JSON array for several.
+    print(json.dumps(predictions[0] if len(args.crops) == 1 else predictions))
 
 
 if __name__ == "__main__":
