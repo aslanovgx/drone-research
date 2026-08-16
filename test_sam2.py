@@ -10,4 +10,4 @@ sam2_model = build_sam2(
     device="cuda" if torch.cuda.is_available() else "cpu"
 )
 
-print("Model uğurla yükləndi:", type(sam2_model))
+print("Model successfully loaded:", type(sam2_model))

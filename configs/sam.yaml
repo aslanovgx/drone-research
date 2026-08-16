@@ -6,9 +6,17 @@ preprocessing:
     overlap: 256
     iou_threshold: 0.7
 
+spatial_index:
+  enabled: true
+  cell_size: 1536
+
 video:
-  frame_interval: 30   # 30fps videoda ~1 frame/saniyə
-  strategy: "resize"    # video frame-lər həmişə resize ilə gedir
+  output_interval: 30  # Export JSON interval. Predictor always processes unbroken sequential frames.
+  frame_interval: 30   # Backward compatibility alias
+  strategy: "resize"
+  predictor_enabled: true
+  offload_video_to_cpu: true
+  offload_state_to_cpu: true
 
 model:
   type: "sam2.1_hiera_small"   # It might change
@@ -26,4 +34,5 @@ mask_filter:
 output:
   crops_dir: "outputs/crops"
   json_path: "outputs/segmentation_results.json"
+  video_json_path: "outputs/video_results.json"
   crop_size: [224, 224]

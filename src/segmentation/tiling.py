@@ -325,13 +325,83 @@ def can_stitch_candidate_pair(mask_a, mask_b, ios_threshold=0.4, max_gap=15):
     return False
 
 
-def stitch_tile_boundary_masks(masks, ios_threshold=0.4, max_gap=15):
+class SpatialGridIndex:
+    """
+    Spatial Grid Index for fast 2D bounding box candidate queries.
+    Divides space into square grid cells of size cell_size.
+    A bounding box is inserted into ALL grid cells that it intersects.
+    """
+    def __init__(self, cell_size: int = 1536):
+        self.cell_size = max(1, int(cell_size))
+        self.grid = {}  # (cell_x, cell_y) -> list of item_ids
+        self.bboxes = {}  # item_id -> bbox
+
+    def _get_cell_range(self, bbox, max_gap: int = 0):
+        if bbox is None:
+            return range(0, 0), range(0, 0)
+        x, y, w, h = bbox
+        if w <= 0 or h <= 0:
+            return range(0, 0), range(0, 0)
+
+        min_x = x - max_gap
+        min_y = y - max_gap
+        max_x = x + w + max_gap
+        max_y = y + h + max_gap
+
+        min_cx = int(np.floor(min_x / self.cell_size))
+        max_cx = int(np.floor(max_x / self.cell_size))
+        min_cy = int(np.floor(min_y / self.cell_size))
+        max_cy = int(np.floor(max_y / self.cell_size))
+
+        return range(min_cx, max_cx + 1), range(min_cy, max_cy + 1)
+
+    def add(self, item_id, bbox):
+        if bbox is None:
+            return
+        x, y, w, h = bbox
+        if w <= 0 or h <= 0:
+            return
+        self.bboxes[item_id] = bbox
+        cell_xs, cell_ys = self._get_cell_range(bbox, max_gap=0)
+        for cx in cell_xs:
+            for cy in cell_ys:
+                key = (cx, cy)
+                if key not in self.grid:
+                    self.grid[key] = []
+                self.grid[key].append(item_id)
+
+    def query_candidates(self, bbox, max_gap: int = 0):
+        cell_xs, cell_ys = self._get_cell_range(bbox, max_gap=max_gap)
+        candidates = set()
+        for cx in cell_xs:
+            for cy in cell_ys:
+                key = (cx, cy)
+                if key in self.grid:
+                    candidates.update(self.grid[key])
+        return sorted(list(candidates))
+
+
+def stitch_tile_boundary_masks(masks, ios_threshold=0.4, max_gap=15, cell_size=1536, return_stats=False):
     """
     Stitches split masks from adjacent overlapping tiles using multi-condition candidate matching.
+    Uses SpatialGridIndex to find spatially close candidate pairs instead of N*(N-1)/2 pairwise comparisons.
     """
     n = len(masks)
     if n <= 1:
+        if return_stats:
+            return masks, {"candidate_pairs": 0, "actual_stitch_checks": 0, "total_masks": n}
         return masks
+
+    spatial_index = SpatialGridIndex(cell_size=cell_size)
+    for i in range(n):
+        spatial_index.add(i, masks[i]["bbox"])
+
+    candidate_pairs = set()
+    for i in range(n):
+        cands = spatial_index.query_candidates(masks[i]["bbox"], max_gap=max_gap)
+        for j in cands:
+            if i < j:
+                candidate_pairs.add((i, j))
 
     parent = list(range(n))
 
@@ -347,10 +417,11 @@ def stitch_tile_boundary_masks(masks, ios_threshold=0.4, max_gap=15):
         if root_i != root_j:
             parent[root_i] = root_j
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            if can_stitch_candidate_pair(masks[i], masks[j], ios_threshold=ios_threshold, max_gap=max_gap):
-                union(i, j)
+    actual_stitch_checks = 0
+    for i, j in sorted(candidate_pairs):
+        actual_stitch_checks += 1
+        if can_stitch_candidate_pair(masks[i], masks[j], ios_threshold=ios_threshold, max_gap=max_gap):
+            union(i, j)
 
     components = {}
     for i in range(n):
@@ -367,13 +438,23 @@ def stitch_tile_boundary_masks(masks, ios_threshold=0.4, max_gap=15):
                 merged = merge_two_masks(merged, next_m)
             stitched_masks.append(merged)
 
+    if return_stats:
+        stats = {
+            "total_masks": n,
+            "candidate_pairs": len(candidate_pairs),
+            "actual_stitch_checks": actual_stitch_checks,
+            "baseline_pairwise_checks": n * (n - 1) // 2,
+        }
+        return stitched_masks, stats
+
     return stitched_masks
 
 
-def deduplicate_masks(masks, iou_threshold=0.7):
+def deduplicate_masks(masks, iou_threshold=0.7, cell_size=1536, return_stats=False):
     """
     Removes duplicate masks produced because neighboring tiles overlap.
     Masks are sorted by predicted_iou so that stronger SAM predictions are kept first.
+    Uses SpatialGridIndex to eliminate unnecessary O(N^2) comparisons.
     """
     masks_sorted = sorted(
         masks,
@@ -381,20 +462,28 @@ def deduplicate_masks(masks, iou_threshold=0.7):
         reverse=True
     )
 
+    spatial_index = SpatialGridIndex(cell_size=cell_size)
     kept = []
 
-    for m in masks_sorted:
-        is_duplicate = False
+    total_candidates_checked = 0
+    actual_iou_computed = 0
 
-        for k in kept:
+    for idx, m in enumerate(masks_sorted):
+        is_duplicate = False
+        candidates = spatial_index.query_candidates(m["bbox"], max_gap=0)
+        total_candidates_checked += len(candidates)
+
+        for k_idx in candidates:
+            k = kept[k_idx]
             if not _bbox_overlaps(m["bbox"], k["bbox"]):
                 continue
 
+            actual_iou_computed += 1
             iou = cropped_mask_iou(
                 m["segmentation"],
-                m["mask_offset"],
+                m.get("mask_offset", (0, 0)),
                 k["segmentation"],
-                k["mask_offset"],
+                k.get("mask_offset", (0, 0)),
             )
 
             if iou > iou_threshold:
@@ -402,7 +491,19 @@ def deduplicate_masks(masks, iou_threshold=0.7):
                 break
 
         if not is_duplicate:
+            kept_idx = len(kept)
             kept.append(m)
+            spatial_index.add(kept_idx, m["bbox"])
+
+    if return_stats:
+        stats = {
+            "total_masks": len(masks),
+            "kept_masks": len(kept),
+            "candidate_checks": total_candidates_checked,
+            "actual_iou_computed": actual_iou_computed,
+            "baseline_pairwise_checks": len(masks) * (len(masks) - 1) // 2,
+        }
+        return kept, stats
 
     return kept
 
@@ -419,6 +520,7 @@ def generate_masks_tiled(
     min_predicted_iou=0.85,
     reject_tile_edge=False,
     edge_tolerance=2,
+    cell_size=1536,
 ):
     """
     Runs SAM automatic mask generation over overlapping tiles with the complete pipeline:
@@ -475,15 +577,15 @@ def generate_masks_tiled(
     print(f"Masks after quality filter: {len(quality_masks)}")
 
     # Step 2: Local / Within-tile deduplication
-    local_dedup_masks = deduplicate_masks(quality_masks, iou_threshold=iou_threshold)
+    local_dedup_masks = deduplicate_masks(quality_masks, iou_threshold=iou_threshold, cell_size=cell_size)
     print(f"Masks after local deduplication: {len(local_dedup_masks)}")
 
     # Step 3: Boundary-aware stitching
-    stitched_masks = stitch_tile_boundary_masks(local_dedup_masks, ios_threshold=ios_threshold)
+    stitched_masks = stitch_tile_boundary_masks(local_dedup_masks, ios_threshold=ios_threshold, cell_size=cell_size)
     print(f"Masks after boundary stitching: {len(stitched_masks)}")
 
     # Step 4: Post-stitching deduplication & artifact filtering
-    final_masks = deduplicate_masks(stitched_masks, iou_threshold=iou_threshold)
+    final_masks = deduplicate_masks(stitched_masks, iou_threshold=iou_threshold, cell_size=cell_size)
 
     if reject_tile_edge:
         final_masks = filter_boundary_artifacts(final_masks, image_shape=img_shape, edge_tolerance=edge_tolerance)
@@ -491,4 +593,4 @@ def generate_masks_tiled(
     print(f"Final masks: {len(final_masks)}")
 
     return final_masks
-
+
