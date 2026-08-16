@@ -1,0 +1,14 @@
+sam:
+  min_score: 0.80
+  min_mask_area: 500
+
+classifier:
+  min_confidence: 0.60
+
+outputs:
+  json_dir: outputs/json
+  annotated_dir: outputs/predictions
+
+visualization:
+  box_thickness: 2
+  show_confidence: true
