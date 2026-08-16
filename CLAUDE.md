@@ -27,8 +27,26 @@ Class + Confidence → Visualization
 ## Progress Log
 (update this section as work happens — most recent entries at the top)
 
-### 2026-08-17 — feature/classifier — status: tuned to the real dataset
-Raw imagery is now in hand: **ArcGIS Packing House District**, 307 frames,
+### 2026-08-17 — feature/classifier — status: DONE, PR open, awaiting review
+
+**PR:** https://github.com/aslanovgx/drone-research/pull/2
+(`feature/classifier` → `develop`, 12 files, +2058/−1). Body: `docs/pr_classifier.md`.
+Review sits with Mustafa (`feature/integration` owns PR review).
+
+Work began in a locally initialised repo before the shared one existed, so the
+commits were **rebased onto `origin/develop`** rather than squashed in via a
+fresh clone — incremental history preserved, pushed as a fast-forward, and
+`main`/`develop` never touched directly. Local `main`/`develop` now track origin;
+`backup/pre-rebase` holds the pre-rebase history and can be deleted after merge.
+
+**`.gitignore` merge — affects the whole team, not just this branch:** the shared
+file ignored `models/*.pt` but not `checkpoints/`, where `train.py` writes, so a
+checkpoint was committable. The merged version keeps the team's structure and
+`.gitkeep` negations intact and adds a tree-wide
+`*.pt`/`*.pth`/`*.onnx`/`*.ckpt` catch-all plus `checkpoints/`, and a text-only
+`data/manifests/` exception in their per-directory style.
+
+**Raw imagery arrived** and the preprocessing was tuned to it. Details: **ArcGIS Packing House District**, 307 frames,
 9504×6336 (60 MP), 6.57 GB, all geotagged, Sony ILCE-7RM4 + FE 24 mm.
 Held **outside the repo** at `C:\Users\ehmed\Desktop\Redlands - Packing House
 District\` (never copy it in; `data/` is gitignored). No labels, no boxes — as
@@ -61,13 +79,6 @@ resize to 1024 px it is only ~35 px, so tiling is worth raising with Dəniz.
       block split** replacing the old split-by-frame rule, class-balance guidance,
       and 13 new edge cases observed in the actual frames (railway, construction
       machinery, mobile homes, sapling rows, dappled shadow, boulders, fences).
-
-**Verified:** clean regenerate → train → single/batch inference; real crops cut
-from frame `211021_181441_889.jpg` (car 170×350, canopy 450×420, road 490×220,
-20×18 fragment) all classify and return the contract shape; min-crop guard skips
-the 20×18 crop (33→32); class weights shift to 0.38/2.25 under 6:1 imbalance;
-all three import layouts still work.
-
 - [x] **Epoch budget + early stopping** (`training.epochs: 25`,
       `training.early_stopping_patience: 5`). 3 epochs was a smoke-test number,
       too low for a real fine-tune; patience makes a generous budget safe by
@@ -75,27 +86,43 @@ all three import layouts still work.
       the synthetic crops at epoch 6 and stops at 11 — which is itself proof the
       placeholders are trivially separable and that their accuracy means nothing.
 
+**Verified:** clean regenerate → train → single/batch inference; real crops cut
+from frame `211021_181441_889.jpg` (car 170×350, canopy 450×420, road 490×220,
+20×18 fragment) all classify and return the contract shape; min-crop guard skips
+the 20×18 crop (33→32); class weights shift to 0.38/2.25 under 6:1 imbalance;
+all three import layouts still work.
+
 **Note:** predictions on real crops are wrong and near chance (~0.3 confidence) —
-correct behaviour for a model trained on synthetic shapes. Real accuracy needs
-labelled crops.
+correct behaviour for a model trained on synthetic shapes. The mechanism works;
+the knowledge does not exist yet. Real accuracy needs labelled crops.
 
-### 2026-08-15 — feature/classifier — status: DONE, PR open
-Classifier stage (SAM crop → class + confidence) implemented end to end.
+**Next, in order:** PR #2 review/merge → Dəniz's SAM stage produces real crops →
+**labelling** (the bottleneck) → retrain and delete the synthetic placeholders →
+Mustafa swaps his mock classifier for the real one → revisit the `road` class
+once SAM's fragmented road masks are fixed.
 
-**PR:** https://github.com/aslanovgx/drone-research/pull/2
-(`feature/classifier` → `develop`, 12 files, +2058/−1). Body:
-`docs/pr_classifier.md`.
+**Team coordination — open items owned elsewhere:**
+- **Masked vs. plain bbox crops** (`feature/sam-segmentation`). If crops arrive
+  background-zeroed, the 50%-dominance/mixed-content/occlusion rules in the
+  annotation guidelines need revising and the ImageNet normalisation statistics
+  shift. Recommendation: plain bbox crops, mask saved separately. Decide before
+  bulk labelling.
+- **Nobody owns the labelling itself.** It is the project's critical path and is
+  absent from all three teammate task specs. Needs an owner, a per-class target
+  (a few hundred crops each is a sane start), and a double-labelled overlap
+  sample to check the guidelines actually produce annotator agreement.
+- **Tiling in the SAM stage.** A car is ~330 px in a raw frame but only ~35 px
+  after SAM's internal 1024 px resize; tiling would roughly triple that.
+- **Checkpoint distribution.** `checkpoints/classifier.pt` is gitignored, so the
+  end-to-end pipeline needs an agreed source for the weights (release artifact or
+  shared drive).
+- **Class list ownership.** `classes` is duplicated between `classifier.yaml` and
+  whatever the visualization stage uses for label colours; it should have one
+  home.
 
-Work began in a locally initialised repo before the shared one existed, so the
-13 commits were **rebased onto `origin/develop`** rather than squashed in via a
-fresh clone — incremental history preserved, pushed as a fast-forward, and
-`main`/`develop` never touched directly.
-
-**`.gitignore` merge (affects everyone, not just this branch):** the shared file
-ignored `models/*.pt` but not `checkpoints/`, where `train.py` writes. The merged
-version keeps the team's structure and `.gitkeep` negations intact and adds a
-tree-wide `*.pt`/`*.pth`/`*.onnx`/`*.ckpt` catch-all plus `checkpoints/`, and a
-text-only `data/manifests/` exception written in their per-directory style.
+### 2026-08-15 — feature/classifier — classifier stage implemented
+Classifier stage (SAM crop → class + confidence) built end to end, one commit per
+logical unit.
 
 **How to run:**
 ```
@@ -159,26 +186,3 @@ all three import layouts import successfully; `git status` clean with `data/`,
 `outputs/` and `checkpoints/` ignored, and `git check-ignore` confirming
 manifests are the only exception.
 
-**Next:** PR #2 awaits review by Mustafa (`feature/integration` owns reviews).
-After merge: label real SAM crops, retrain, swap the synthetic placeholders out.
-
-**Team coordination — open items owned elsewhere:**
-- **Masked vs. plain bbox crops** (`feature/sam-segmentation`). If crops arrive
-  background-zeroed, the 50%-dominance/mixed-content/occlusion rules in the
-  annotation guidelines need revising and the ImageNet normalisation statistics
-  shift. Recommendation: plain bbox crops, mask saved separately. Decide before
-  bulk labelling.
-- **Nobody owns the labelling itself.** It is the project's critical path and is
-  absent from all three teammate task specs. Needs an owner, a per-class target
-  (a few hundred crops each is a sane start), and a double-labelled overlap
-  sample to check the guidelines actually produce annotator agreement.
-- **Checkpoint distribution.** `checkpoints/classifier.pt` is gitignored, so the
-  end-to-end pipeline needs an agreed source for the weights (release artifact or
-  shared drive).
-- **Class list ownership.** `classes` is duplicated between `classifier.yaml` and
-  whatever the visualization stage uses for label colours; it should have one
-  home.
-
-Then: label real SAM crops per `docs/annotation_guidelines.md`, delete the
-synthetic placeholders, retrain, and revisit the `road` class once SAM's
-fragmented road masks are fixed.
