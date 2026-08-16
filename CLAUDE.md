@@ -79,16 +79,23 @@ all three import layouts still work.
 correct behaviour for a model trained on synthetic shapes. Real accuracy needs
 labelled crops.
 
-### 2026-08-15 — feature/classifier — status: code complete, PR blocked
-Classifier stage (SAM crop → class + confidence) implemented end to end. Repo
-initialized here (`main` → `develop` → `feature/classifier`); there was no
-existing git history.
+### 2026-08-15 — feature/classifier — status: DONE, PR open
+Classifier stage (SAM crop → class + confidence) implemented end to end.
 
-**Blocker:** no git remote is configured and the `gh` CLI is not installed on
-this machine, so the branch could not be pushed and the PR
-(feature/classifier → develop) could not be opened. Everything else is done and
-verified. The PR body is drafted in `docs/pr_classifier.md` — add a remote,
-push, and open the PR with it.
+**PR:** https://github.com/aslanovgx/drone-research/pull/2
+(`feature/classifier` → `develop`, 12 files, +2058/−1). Body:
+`docs/pr_classifier.md`.
+
+Work began in a locally initialised repo before the shared one existed, so the
+13 commits were **rebased onto `origin/develop`** rather than squashed in via a
+fresh clone — incremental history preserved, pushed as a fast-forward, and
+`main`/`develop` never touched directly.
+
+**`.gitignore` merge (affects everyone, not just this branch):** the shared file
+ignored `models/*.pt` but not `checkpoints/`, where `train.py` writes. The merged
+version keeps the team's structure and `.gitkeep` negations intact and adds a
+tree-wide `*.pt`/`*.pth`/`*.onnx`/`*.ckpt` catch-all plus `checkpoints/`, and a
+text-only `data/manifests/` exception written in their per-directory style.
 
 **How to run:**
 ```
@@ -152,7 +159,8 @@ all three import layouts import successfully; `git status` clean with `data/`,
 `outputs/` and `checkpoints/` ignored, and `git check-ignore` confirming
 manifests are the only exception.
 
-**Next:** push `feature/classifier` and open the PR (see the blocker above).
+**Next:** PR #2 awaits review by Mustafa (`feature/integration` owns reviews).
+After merge: label real SAM crops, retrain, swap the synthetic placeholders out.
 
 **Team coordination — open items owned elsewhere:**
 - **Masked vs. plain bbox crops** (`feature/sam-segmentation`). If crops arrive
