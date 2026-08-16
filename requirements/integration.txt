@@ -6,3 +6,4 @@ pydantic_core==2.46.4
 PyYAML==6.0.3
 typing-inspection==0.4.4
 typing_extensions==4.16.0
+pytest
