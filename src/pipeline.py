@@ -103,6 +103,8 @@ def run_pipeline(
     save_annotated_image(
         result=result,
         output_path=str(annotated_output_path),
+        box_thickness=config.visualization.box_thickness,
+        show_confidence=config.visualization.show_confidence,
     )
 
     return result

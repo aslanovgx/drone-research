@@ -20,6 +20,8 @@ DEFAULT_COLOR = (255, 255, 255)
 def draw_detections(
     image: np.ndarray,
     detections: list[Detection],
+    box_thickness: int = 2,
+    show_confidence: bool = True,
 ) -> np.ndarray:
     annotated_image = image.copy()
     image_height, image_width = annotated_image.shape[:2]
@@ -45,13 +47,13 @@ def draw_detections(
             (x1, y1),
             (x2, y2),
             color,
-            thickness=2,
+            thickness=box_thickness,
         )
 
-        label = (
-            f"{detection.class_name} "
-            f"{detection.confidence:.2f}"
-        )
+        label = detection.class_name
+        
+        if show_confidence:
+            label = f"{label} {detection.confidence:.2f}"
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.6
@@ -99,6 +101,8 @@ def draw_detections(
 def save_annotated_image(
     result: PipelineResult,
     output_path: str,
+    box_thickness: int = 2,
+    show_confidence: bool = True,
 ) -> Path:
     image = cv2.imread(result.image)
 
@@ -110,6 +114,8 @@ def save_annotated_image(
     annotated_image = draw_detections(
         image=image,
         detections=result.detections,
+        box_thickness=box_thickness,
+        show_confidence=show_confidence,
     )
 
     path = Path(output_path)
