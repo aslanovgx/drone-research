@@ -68,6 +68,13 @@ from frame `211021_181441_889.jpg` (car 170×350, canopy 450×420, road 490×220
 the 20×18 crop (33→32); class weights shift to 0.38/2.25 under 6:1 imbalance;
 all three import layouts still work.
 
+- [x] **Epoch budget + early stopping** (`training.epochs: 25`,
+      `training.early_stopping_patience: 5`). 3 epochs was a smoke-test number,
+      too low for a real fine-tune; patience makes a generous budget safe by
+      stopping when validation accuracy plateaus. Smoke test now reaches 100% on
+      the synthetic crops at epoch 6 and stops at 11 — which is itself proof the
+      placeholders are trivially separable and that their accuracy means nothing.
+
 **Note:** predictions on real crops are wrong and near chance (~0.3 confidence) —
 correct behaviour for a model trained on synthetic shapes. Real accuracy needs
 labelled crops.

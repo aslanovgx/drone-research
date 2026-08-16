@@ -30,7 +30,12 @@ model:
   pretrained: true                # load ImageNet weights
 
 training:
-  epochs: 3
+  # 25 suits a real fine-tune on labelled crops. The synthetic smoke test does not
+  # need this many — pass --epochs 3 for a quick check.
+  epochs: 25
+  # Stop when validation accuracy has not improved for this many epochs, so a
+  # generous epoch budget cannot overfit the tail of the run. 0 disables it.
+  early_stopping_patience: 5
   batch_size: 16
   learning_rate: 0.0003
   weight_decay: 0.0001

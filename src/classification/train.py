@@ -224,7 +224,14 @@ def train(config: dict[str, Any]) -> Path:
     criterion = nn.CrossEntropyLoss(weight=weights)
 
     checkpoint_path = Path(config.get("checkpoint", {}).get("path", "checkpoints/classifier.pt"))
+    # Stop once validation accuracy has not improved for this many epochs. Lets the
+    # epoch budget be set generously without overfitting the tail of the run; 0 runs
+    # every epoch regardless.
+    patience = int(train_cfg.get("early_stopping_patience", 0))
     best_accuracy = -1.0
+    best_epoch = 0
+    epochs_without_improvement = 0
+
     for epoch in range(1, epochs + 1):
         train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
         validation_loss, validation_accuracy = evaluate(model, validation_loader, criterion, device)
@@ -235,6 +242,8 @@ def train(config: dict[str, Any]) -> Path:
 
         if validation_accuracy > best_accuracy:
             best_accuracy = validation_accuracy
+            best_epoch = epoch
+            epochs_without_improvement = 0
             save_checkpoint(
                 model,
                 checkpoint_path,
@@ -245,8 +254,16 @@ def train(config: dict[str, Any]) -> Path:
                 validation_accuracy,
                 preserve_aspect=preserve_aspect,
             )
+        else:
+            epochs_without_improvement += 1
+            if patience and epochs_without_improvement >= patience:
+                print(f"early stop: no validation improvement for {patience} epochs")
+                break
 
-    print(f"saved checkpoint -> {checkpoint_path}  (best val_acc={best_accuracy:.2%})")
+    print(
+        f"saved checkpoint -> {checkpoint_path}  "
+        f"(best val_acc={best_accuracy:.2%} at epoch {best_epoch})"
+    )
     return checkpoint_path
 
 
