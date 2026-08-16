@@ -17,12 +17,17 @@ Classify every crop of one frame, loading the checkpoint once::
 
 For a long-lived process, load the model once and reuse it::
 
-    from classification import load_classifier, classify_crops, load_config, resolve_device
+    from classification import load_classifier, classify_crops, resolve_device
 
-    config = load_config()
     device = resolve_device()
-    model, classes, image_size = load_classifier("checkpoints/classifier.pt", device)
-    predictions = classify_crops(crop_paths, model, classes, image_size, device)
+    clf = load_classifier("checkpoints/classifier.pt", device)
+    predictions = classify_crops(
+        crop_paths, clf.model, clf.classes, clf.image_size, device,
+        preserve_aspect=clf.preserve_aspect,
+    )
+
+``load_classifier`` returns the preprocessing settings alongside the weights, so
+inference cannot silently preprocess crops differently from training.
 
 :func:`predict` handles the single-crop case but reloads the checkpoint per call.
 """
@@ -30,6 +35,7 @@ For a long-lived process, load the model once and reuse it::
 from .config import load_config, resolve_device
 from .dataset import CropDataset, class_to_index, create_dataloaders, index_to_class
 from .inference import (
+    LoadedClassifier,
     Prediction,
     classify_crop,
     classify_crops,
@@ -42,6 +48,7 @@ from .model import build_model
 
 __all__ = [
     "CropDataset",
+    "LoadedClassifier",
     "Prediction",
     "build_model",
     "class_to_index",

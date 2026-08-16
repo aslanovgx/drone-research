@@ -22,10 +22,9 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Optional, Sequence, TypedDict
+from typing import Any, NamedTuple, Optional, Sequence, TypedDict
 
 import torch
-from PIL import Image
 
 if __package__ in (None, ""):
     # Direct script run (`python src/classification/inference.py`): put `src` on the
@@ -36,7 +35,7 @@ if __package__ in (None, ""):
     __package__ = "classification"
 
 from .config import DEFAULT_CONFIG_PATH, load_config, resolve_device
-from .dataset import build_transforms, index_to_class
+from .dataset import build_transforms, index_to_class, load_crop_image
 from .model import build_model
 
 # Matches segment_17.png and prefixed variants such as scene3_segment_17.png.
@@ -63,18 +62,28 @@ def parse_segment_id(crop_path: str | Path) -> int | None:
     return int(match.group(1)) if match else None
 
 
+class LoadedClassifier(NamedTuple):
+    """A ready-to-use model plus the preprocessing settings it was trained with."""
+
+    model: torch.nn.Module
+    classes: list[str]
+    image_size: int
+    preserve_aspect: bool
+
+
 def load_classifier(
     checkpoint_path: str | Path,
     device: torch.device,
     fallback_classes: list[str] | None = None,
     fallback_backbone: str = "mobilenet_v3_small",
     fallback_image_size: int = 224,
-) -> tuple[torch.nn.Module, list[str], int]:
+    fallback_preserve_aspect: bool = True,
+) -> LoadedClassifier:
     """Load a trained classifier from a checkpoint written by ``train.py``.
 
-    The checkpoint's own ``classes`` / ``backbone`` / ``image_size`` are
-    authoritative; the fallbacks (taken from the config) only apply to older
-    checkpoints that stored weights alone.
+    The checkpoint's own ``classes`` / ``backbone`` / ``image_size`` /
+    ``preserve_aspect`` are authoritative; the fallbacks (taken from the config)
+    only apply to older checkpoints that stored weights alone.
 
     Args:
         checkpoint_path: Path to the ``.pt`` file.
@@ -82,9 +91,11 @@ def load_classifier(
         fallback_classes: Class names to assume if the checkpoint lacks them.
         fallback_backbone: Backbone to assume if the checkpoint lacks it.
         fallback_image_size: Crop size to assume if the checkpoint lacks it.
+        fallback_preserve_aspect: Letterbox setting to assume if absent.
 
     Returns:
-        ``(model_in_eval_mode, classes_by_index, image_size)``.
+        A :class:`LoadedClassifier` — the model in eval mode plus the class list,
+        crop size and letterbox flag it expects.
 
     Raises:
         FileNotFoundError: If the checkpoint does not exist.
@@ -104,12 +115,13 @@ def load_classifier(
 
     backbone = checkpoint.get("backbone", fallback_backbone)
     image_size = int(checkpoint.get("image_size", fallback_image_size))
+    preserve_aspect = bool(checkpoint.get("preserve_aspect", fallback_preserve_aspect))
 
     # Weights come from the checkpoint, so skip the pretrained download entirely.
     model = build_model(num_classes=len(classes), backbone=backbone, pretrained=False)
     model.load_state_dict(state_dict)
     model.to(device).eval()
-    return model, classes, image_size
+    return LoadedClassifier(model, classes, image_size, preserve_aspect)
 
 
 def _load_crop_tensor(crop_path: Path, transform: Any) -> torch.Tensor:
@@ -120,9 +132,7 @@ def _load_crop_tensor(crop_path: Path, transform: Any) -> torch.Tensor:
     """
     if not crop_path.is_file():
         raise FileNotFoundError(f"Crop not found: {crop_path}")
-    with Image.open(crop_path) as image:
-        # convert("RGB") also flattens the alpha channel of masked SAM crops.
-        return transform(image.convert("RGB"))
+    return transform(load_crop_image(crop_path))
 
 
 def classify_crop(
@@ -133,6 +143,7 @@ def classify_crop(
     device: torch.device,
     confidence_decimals: int = 2,
     segment_id: int | None = None,
+    preserve_aspect: bool = True,
 ) -> Prediction:
     """Classify one crop with an already-loaded model.
 
@@ -146,6 +157,8 @@ def classify_crop(
         segment_id: Explicit id, used in place of parsing the filename. Callers
             that already hold the SAM metadata should pass it rather than relying
             on the ``segment_<id>`` naming convention.
+        preserve_aspect: Must match the value the model was trained with; take it
+            from :attr:`LoadedClassifier.preserve_aspect`.
 
     Returns:
         A :class:`Prediction` with ``segment_id``, ``class`` and ``confidence``.
@@ -161,6 +174,7 @@ def classify_crop(
         device=device,
         confidence_decimals=confidence_decimals,
         segment_ids=None if segment_id is None else [segment_id],
+        preserve_aspect=preserve_aspect,
     )[0]
 
 
@@ -174,6 +188,7 @@ def classify_crops(
     confidence_decimals: int = 2,
     segment_ids: Sequence[int | None] | None = None,
     batch_size: int = 32,
+    preserve_aspect: bool = True,
 ) -> list[Prediction]:
     """Classify many crops with one loaded model, batching the forward passes.
 
@@ -191,6 +206,8 @@ def classify_crops(
         segment_ids: Explicit ids parallel to ``crop_paths``. When omitted, each
             id is parsed from its filename.
         batch_size: Number of crops per forward pass.
+        preserve_aspect: Must match the value the model was trained with; take it
+            from :attr:`LoadedClassifier.preserve_aspect`.
 
     Returns:
         One :class:`Prediction` per input path, in input order. An empty input
@@ -208,7 +225,7 @@ def classify_crops(
         raise ValueError(f"segment_ids has {len(segment_ids)} entries but {len(paths)} crops were given.")
 
     # Validation transforms — no augmentation at inference time.
-    transform = build_transforms(image_size, train=False)
+    transform = build_transforms(image_size, train=False, preserve_aspect=preserve_aspect)
     predictions: list[Prediction] = []
 
     for start in range(0, len(paths), batch_size):
@@ -285,23 +302,26 @@ def predict_many(
         return []
 
     config = config if config is not None else load_config()
+    data_cfg = config.get("data", {})
     device = resolve_device(str(config.get("training", {}).get("device", "auto")))
 
-    model, classes, image_size = load_classifier(
+    bundle = load_classifier(
         checkpoint_path or config.get("checkpoint", {}).get("path", "checkpoints/classifier.pt"),
         device=device,
         fallback_classes=list(config.get("classes", [])),
         fallback_backbone=str(config.get("model", {}).get("backbone", "mobilenet_v3_small")),
-        fallback_image_size=int(config.get("data", {}).get("image_size", 224)),
+        fallback_image_size=int(data_cfg.get("image_size", 224)),
+        fallback_preserve_aspect=bool(data_cfg.get("preserve_aspect", True)),
     )
     return classify_crops(
         crop_paths,
-        model=model,
-        classes=classes,
-        image_size=image_size,
+        model=bundle.model,
+        classes=bundle.classes,
+        image_size=bundle.image_size,
         device=device,
         confidence_decimals=int(config.get("inference", {}).get("confidence_decimals", 2)),
         segment_ids=segment_ids,
+        preserve_aspect=bundle.preserve_aspect,
     )
 
 

@@ -121,6 +121,7 @@ def save_checkpoint(
     image_size: int,
     epoch: int,
     validation_accuracy: float,
+    preserve_aspect: bool = True,
 ) -> Path:
     """Write the model weights plus everything inference needs to rebuild it.
 
@@ -135,6 +136,9 @@ def save_checkpoint(
         image_size: Crop size the model was trained on.
         epoch: 1-based epoch this checkpoint came from.
         validation_accuracy: Validation accuracy at that epoch.
+        preserve_aspect: Whether crops were letterboxed rather than stretched.
+            Inference must match this or every crop is preprocessed differently
+            from training.
 
     Returns:
         The path written.
@@ -147,6 +151,7 @@ def save_checkpoint(
             "classes": classes,
             "backbone": backbone,
             "image_size": image_size,
+            "preserve_aspect": preserve_aspect,
             "epoch": epoch,
             "validation_accuracy": validation_accuracy,
         },
@@ -172,6 +177,7 @@ def train(config: dict[str, Any]) -> Path:
     image_size = int(data_cfg.get("image_size", 224))
     backbone = str(model_cfg.get("backbone", "mobilenet_v3_small"))
     epochs = int(train_cfg.get("epochs", 3))
+    preserve_aspect = bool(data_cfg.get("preserve_aspect", True))
 
     set_seed(int(train_cfg.get("seed", 42)))
     device = resolve_device(str(train_cfg.get("device", "auto")))
@@ -184,6 +190,8 @@ def train(config: dict[str, Any]) -> Path:
         num_workers=int(data_cfg.get("num_workers", 0)),
         train_split=str(data_cfg.get("train_split", "train")),
         validation_split=str(data_cfg.get("validation_split", "validation")),
+        preserve_aspect=preserve_aspect,
+        min_crop_pixels=int(data_cfg.get("min_crop_pixels", 32)),
     )
 
     model = build_model(
@@ -192,7 +200,6 @@ def train(config: dict[str, Any]) -> Path:
         pretrained=bool(model_cfg.get("pretrained", True)),
     ).to(device)
 
-    criterion = nn.CrossEntropyLoss()
     optimizer = build_optimizer(
         model,
         name=str(train_cfg.get("optimizer", "adamw")),
@@ -202,9 +209,19 @@ def train(config: dict[str, Any]) -> Path:
 
     print(
         f"device={device} backbone={backbone} classes={classes} "
-        f"params={count_trainable_parameters(model):,}\n"
-        f"train={len(train_loader.dataset)} crops  validation={len(validation_loader.dataset)} crops"
+        f"params={count_trainable_parameters(model):,} preserve_aspect={preserve_aspect}\n"
+        f"train={len(train_loader.dataset)} crops {train_loader.dataset.class_counts()}\n"
+        f"validation={len(validation_loader.dataset)} crops {validation_loader.dataset.class_counts()}"
     )
+
+    # Nadir urban crops are overwhelmingly `other` (pavement, dirt, shadow), so an
+    # unweighted loss rewards always predicting it. "auto" counteracts that with
+    # inverse-frequency weights; "none" disables it.
+    weighting = str(train_cfg.get("class_weights", "auto")).lower()
+    weights = train_loader.dataset.class_weights().to(device) if weighting == "auto" else None
+    if weights is not None:
+        print("class weights: " + ", ".join(f"{n}={w:.2f}" for n, w in zip(classes, weights.tolist())))
+    criterion = nn.CrossEntropyLoss(weight=weights)
 
     checkpoint_path = Path(config.get("checkpoint", {}).get("path", "checkpoints/classifier.pt"))
     best_accuracy = -1.0
@@ -218,7 +235,16 @@ def train(config: dict[str, Any]) -> Path:
 
         if validation_accuracy > best_accuracy:
             best_accuracy = validation_accuracy
-            save_checkpoint(model, checkpoint_path, classes, backbone, image_size, epoch, validation_accuracy)
+            save_checkpoint(
+                model,
+                checkpoint_path,
+                classes,
+                backbone,
+                image_size,
+                epoch,
+                validation_accuracy,
+                preserve_aspect=preserve_aspect,
+            )
 
     print(f"saved checkpoint -> {checkpoint_path}  (best val_acc={best_accuracy:.2%})")
     return checkpoint_path

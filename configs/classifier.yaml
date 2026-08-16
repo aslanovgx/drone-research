@@ -18,6 +18,12 @@ data:
   validation_split: validation
   image_size: 224                 # square crop size fed to the backbone
   num_workers: 0                  # 0 is the safe default on Windows / small sets
+  # Letterbox (resize + pad) instead of stretching to a square. SAM crops are
+  # strongly non-square — a car is ~330x150 px at this dataset's ~1.4 cm/px — and
+  # that aspect ratio separates cars from roofs, so it is worth keeping.
+  preserve_aspect: true
+  # Skip crops whose short side is below this; ~32 px is ~45 cm on the ground here.
+  min_crop_pixels: 32
 
 model:
   backbone: mobilenet_v3_small    # or: resnet18
@@ -31,6 +37,10 @@ training:
   optimizer: adamw                # adamw | adam
   seed: 42
   device: auto                    # auto | cpu | cuda
+  # `other` dominates nadir urban scenes (pavement, dirt, shadow). "auto" applies
+  # inverse-frequency loss weights so the model cannot coast by always saying
+  # `other`; "none" disables weighting.
+  class_weights: auto             # auto | none
 
 checkpoint:
   path: checkpoints/classifier.pt # gitignored
