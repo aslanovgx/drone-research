@@ -99,3 +99,7 @@ manifests/
 *.ckpt
 *.weights
 *.safetensors
+
+# --- SAM local dependencies and checkpoints ---
+checkpoints/
+sam2_repo/
