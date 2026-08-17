@@ -48,6 +48,7 @@ data/*
 !data/annotations/
 !data/classifier/
 !data/external_test/
+!data/manifests/
 
 data/raw/*
 !data/raw/.gitkeep
@@ -63,6 +64,18 @@ data/classifier/*
 
 data/external_test/*
 !data/external_test/.gitkeep
+
+# Reproducible text-only dataset manifests
+data/manifests/*
+!data/manifests/.gitkeep
+!data/manifests/*.json
+!data/manifests/*.csv
+!data/manifests/*.txt
+!data/manifests/*.md
+
+# Temporary classifier development crops
+**/sample_crops/**
+**/_tmp_crops/**
 
 /dataset/
 /datasets/

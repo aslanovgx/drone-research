@@ -1,0 +1,54 @@
+# Configuration for the classifier stage of the drone imagery pipeline.
+# train.py and inference.py read everything from here — nothing is hardcoded.
+# Paths are relative to the repository root.
+
+# Target classes. `road` is intentionally excluded for now (see
+# docs/annotation_guidelines.md); road-like crops are labelled `other`.
+# Label indices are derived from the SORTED list, not the order below:
+#   building=0, car=1, other=2, tree=3
+classes:
+  - building
+  - tree
+  - car
+  - other
+
+data:
+  dataset_root: data/classifier   # contains <train_split>/ and <validation_split>/
+  train_split: train
+  validation_split: validation
+  image_size: 224                 # square crop size fed to the backbone
+  num_workers: 0                  # 0 is the safe default on Windows / small sets
+  # Letterbox (resize + pad) instead of stretching to a square. SAM crops are
+  # strongly non-square — a car is ~330x150 px at this dataset's ~1.4 cm/px — and
+  # that aspect ratio separates cars from roofs, so it is worth keeping.
+  preserve_aspect: true
+  # Skip crops whose short side is below this; ~32 px is ~45 cm on the ground here.
+  min_crop_pixels: 32
+
+model:
+  backbone: mobilenet_v3_small    # or: resnet18
+  pretrained: true                # load ImageNet weights
+
+training:
+  # 25 suits a real fine-tune on labelled crops. The synthetic smoke test does not
+  # need this many — pass --epochs 3 for a quick check.
+  epochs: 25
+  # Stop when validation accuracy has not improved for this many epochs, so a
+  # generous epoch budget cannot overfit the tail of the run. 0 disables it.
+  early_stopping_patience: 5
+  batch_size: 16
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  optimizer: adamw                # adamw | adam
+  seed: 42
+  device: auto                    # auto | cpu | cuda | mps
+  # `other` dominates nadir urban scenes (pavement, dirt, shadow). "auto" applies
+  # inverse-frequency loss weights so the model cannot coast by always saying
+  # `other`; "none" disables weighting.
+  class_weights: auto             # auto | none
+
+checkpoint:
+  path: checkpoints/classifier.pt # gitignored
+
+inference:
+  confidence_decimals: 2          # rounding applied to the reported confidence
