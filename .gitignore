@@ -1,0 +1,78 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- IDE / OS artifacts ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Temporary files ---
+*.tmp
+*.temp
+*.bak
+*.log
+
+# --- Raw datasets (must never be tracked) ---
+/data/
+/dataset/
+/datasets/
+/Dataset*/
+/raw_data/
+
+# --- Generated outputs (analysis reports, processed images, manifests) ---
+/outputs/
+/output/
+/processed/
+/analysis_output/
+/reports/
+/manifests/
+
+# --- Images only inside dataset & output locations, not globally ---
+/data/**/*.jpg
+/data/**/*.jpeg
+/data/**/*.png
+/dataset/**/*.jpg
+/dataset/**/*.jpeg
+/dataset/**/*.png
+/outputs/**/*.jpg
+/outputs/**/*.jpeg
+/outputs/**/*.png
+/processed/**/*.jpg
+/processed/**/*.jpeg
+/processed/**/*.png
+
+# --- Archives ---
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+
+# --- Model weights / checkpoints ---
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+*.weights
+*.safetensors
