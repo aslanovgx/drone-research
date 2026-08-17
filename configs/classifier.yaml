@@ -41,7 +41,7 @@ training:
   weight_decay: 0.0001
   optimizer: adamw                # adamw | adam
   seed: 42
-  device: auto                    # auto | cpu | cuda
+  device: auto                    # auto | cpu | cuda | mps
   # `other` dominates nadir urban scenes (pavement, dirt, shadow). "auto" applies
   # inverse-frequency loss weights so the model cannot coast by always saying
   # `other`; "none" disables weighting.

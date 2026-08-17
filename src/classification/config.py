@@ -41,15 +41,21 @@ def load_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
 
 
 def resolve_device(requested: str = "auto") -> torch.device:
-    """Resolve the ``training.device`` setting to a concrete torch device.
+    """Resolve the configured device.
 
-    Args:
-        requested: ``"auto"`` picks CUDA when available, otherwise CPU. Any other
-            value is passed through to :class:`torch.device`.
-
-    Returns:
-        The device to run on.
+    Auto-selection order:
+        CUDA -> Apple MPS -> CPU
     """
     if requested == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+
+        if (
+            hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_available()
+        ):
+            return torch.device("mps")
+
+        return torch.device("cpu")
+
     return torch.device(requested)

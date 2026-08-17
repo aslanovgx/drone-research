@@ -3,9 +3,9 @@
 Classifies a single crop produced by the SAM stage
 (``outputs/crops/segment_<id>.png``) and returns::
 
-    {"segment_id": 17, "class": "building", "confidence": 0.92}
+    {"segment_id": 17, "class_name": "building", "confidence": 0.92}
 
-``segment_id`` is parsed from the filename, ``class`` is the argmax class name
+``segment_id`` is parsed from the filename, ``class_name`` is the argmax class name
 and ``confidence`` is the softmax probability of that class, rounded to the
 number of decimals set in ``configs/classifier.yaml``.
 
@@ -22,7 +22,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, NamedTuple, Optional, Sequence, TypedDict
+from typing import Any, NamedTuple, Sequence
 
 import torch
 
@@ -38,29 +38,32 @@ from .config import DEFAULT_CONFIG_PATH, load_config, resolve_device
 from .dataset import build_transforms, index_to_class, load_crop_image
 from .model import build_model
 
+if __package__ == "classification":
+    from utils.schemas import ClassificationPrediction
+else:
+    from ..utils.schemas import ClassificationPrediction
+
 # Matches segment_17.png and prefixed variants such as scene3_segment_17.png.
 SEGMENT_ID_PATTERN = re.compile(r"segment_(\d+)", re.IGNORECASE)
 
-
-# One classified crop: {"segment_id": 17, "class": "building", "confidence": 0.92}.
-# Declared functionally because `class` is a Python keyword and cannot be a field name.
-# `segment_id` is None when the filename does not follow the segment_<id> convention.
-Prediction = TypedDict("Prediction", {"segment_id": Optional[int], "class": str, "confidence": float})
+Prediction = ClassificationPrediction
 
 
-def parse_segment_id(crop_path: str | Path) -> int | None:
+def parse_segment_id(crop_path: str | Path) -> int:
     """Extract the SAM segment id from a crop filename.
 
-    Args:
-        crop_path: Path whose filename contains ``segment_<id>``.
-
-    Returns:
-        The integer id, or ``None`` if the filename does not follow the
-        convention (the crop is still classified; only the id is unknown).
+    Raises:
+        ValueError: If the filename does not contain ``segment_<id>``.
     """
     match = SEGMENT_ID_PATTERN.search(Path(crop_path).stem)
-    return int(match.group(1)) if match else None
 
+    if match is None:
+        raise ValueError(
+            f"Could not determine segment_id from crop filename: {crop_path}. "
+            "Pass segment_id explicitly or use a filename containing segment_<id>."
+        )
+
+    return int(match.group(1))
 
 class LoadedClassifier(NamedTuple):
     """A ready-to-use model plus the preprocessing settings it was trained with."""
@@ -161,7 +164,7 @@ def classify_crop(
             from :attr:`LoadedClassifier.preserve_aspect`.
 
     Returns:
-        A :class:`Prediction` with ``segment_id``, ``class`` and ``confidence``.
+        A :class:`Prediction` with ``segment_id``, ``class_name`` and ``confidence``.
 
     Raises:
         FileNotFoundError: If the crop does not exist.
@@ -186,7 +189,7 @@ def classify_crops(
     image_size: int,
     device: torch.device,
     confidence_decimals: int = 2,
-    segment_ids: Sequence[int | None] | None = None,
+    segment_ids: Sequence[int] | None = None,
     batch_size: int = 32,
     preserve_aspect: bool = True,
 ) -> list[Prediction]:
@@ -236,12 +239,21 @@ def classify_crops(
         for offset, path in enumerate(chunk):
             index = int(probabilities[offset].argmax().item())
             explicit_id = segment_ids[start + offset] if segment_ids is not None else None
+            resolved_segment_id = (
+                explicit_id
+                if explicit_id is not None
+                else parse_segment_id(path)
+            )
+
             predictions.append(
-                {
-                    "segment_id": explicit_id if explicit_id is not None else parse_segment_id(path),
-                    "class": classes[index],
-                    "confidence": round(float(probabilities[offset, index].item()), confidence_decimals),
-                }
+                ClassificationPrediction(
+                    segment_id=resolved_segment_id,
+                    class_name=classes[index],
+                    confidence=round(
+                        float(probabilities[offset, index].item()),
+                        confidence_decimals,
+                    ),
+                )
             )
 
     return predictions
@@ -280,7 +292,7 @@ def predict_many(
     crop_paths: Sequence[str | Path],
     config: dict[str, Any] | None = None,
     checkpoint_path: str | Path | None = None,
-    segment_ids: Sequence[int | None] | None = None,
+    segment_ids: Sequence[int] | None = None,
 ) -> list[Prediction]:
     """Classify a batch of crops, loading the checkpoint exactly once.
 
@@ -344,7 +356,13 @@ def main() -> None:
         segment_ids=None if args.segment_id is None else [args.segment_id],
     )
     # One JSON object for a single crop, a JSON array for several.
-    print(json.dumps(predictions[0] if len(args.crops) == 1 else predictions))
+    payload = (
+    predictions[0].model_dump()
+    if len(predictions) == 1
+    else [prediction.model_dump() for prediction in predictions]
+)
+
+    print(json.dumps(payload))
 
 
 if __name__ == "__main__":

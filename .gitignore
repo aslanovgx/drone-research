@@ -1,4 +1,55 @@
-# Ignore dataset contents, but allow placeholders
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Testing and tooling ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment variables and secrets ---
+.env
+.env.*
+!.env.example
+
+# --- IDE and operating system ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Temporary files ---
+*.tmp
+*.temp
+*.bak
+*.log
+
+# --- Local datasets ---
+data/*
+!data/raw/
+!data/processed/
+!data/annotations/
+!data/classifier/
+!data/external_test/
+!data/manifests/
+
 data/raw/*
 !data/raw/.gitkeep
 
@@ -14,8 +65,7 @@ data/classifier/*
 data/external_test/*
 !data/external_test/.gitkeep
 
-# Dataset manifests: text-only image lists and split definitions that make a
-# development subset reproducible. Imagery here is still ignored.
+# Reproducible text-only dataset manifests
 data/manifests/*
 !data/manifests/.gitkeep
 !data/manifests/*.json
@@ -23,64 +73,46 @@ data/manifests/*
 !data/manifests/*.txt
 !data/manifests/*.md
 
-# Generated results
-outputs/
-reports/
-
-# Temporary/synthetic sample crops used only to exercise the pipeline
+# Temporary classifier development crops
 **/sample_crops/**
 **/_tmp_crops/**
 
-# Model checkpoints
-models/*.pt
-models/*.pth
-models/*.onnx
-models/*.ckpt
+/dataset/
+/datasets/
+/Dataset*/
+/raw_data/
 
-# Checkpoints written by src/classification/train.py, plus a catch-all so no
-# weights file can be committed from anywhere in the tree.
-checkpoints/
-*.pt
-*.pth
-*.onnx
-*.ckpt
+# --- Generated outputs ---
+outputs/
+output/
+processed/
+analysis_output/
+reports/
+manifests/
 
-# Large archives and media
+# --- Archives ---
 *.zip
+*.7z
+*.rar
 *.tar
+*.tar.gz
+*.tgz
 *.gz
+
+# --- Videos and external test media ---
 *.mp4
 *.mov
 *.avi
 
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
+# --- Model weights and checkpoints ---
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+*.weights
+*.safetensors
 
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Environment variables
-.env
-.env.*
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Testing and tooling
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-
-# IDE
-.vscode/
-.idea/
-
-# Operating system
-.DS_Store
-Thumbs.db
+# --- SAM local dependencies and checkpoints ---
+checkpoints/
+sam2_repo/

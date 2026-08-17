@@ -13,7 +13,7 @@ Classify every crop of one frame, loading the checkpoint once::
         ["outputs/crops/segment_17.png", "outputs/crops/segment_18.png"],
         segment_ids=[17, 18],          # optional; parsed from filenames otherwise
     )
-    # [{"segment_id": 17, "class": "building", "confidence": 0.92}, ...]
+    # [{"segment_id": 17, "class_name": "building", "confidence": 0.92}, ...]
 
 For a long-lived process, load the model once and reuse it::
 
