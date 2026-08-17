@@ -51,7 +51,7 @@ def draw_detections(
         )
 
         label = detection.class_name
-        
+
         if show_confidence:
             label = f"{label} {detection.confidence:.2f}"
 

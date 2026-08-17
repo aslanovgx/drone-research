@@ -1,5 +1,53 @@
-# Ignore dataset contents, but allow placeholders
-data/
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Testing and tooling ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment variables and secrets ---
+.env
+.env.*
+!.env.example
+
+# --- IDE and operating system ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Temporary files ---
+*.tmp
+*.temp
+*.bak
+*.log
+
+# --- Local datasets ---
+data/*
+!data/raw/
+!data/processed/
+!data/annotations/
+!data/classifier/
+!data/external_test/
 
 data/raw/*
 !data/raw/.gitkeep
@@ -16,51 +64,38 @@ data/classifier/*
 data/external_test/*
 !data/external_test/.gitkeep
 
-# Generated results
+/dataset/
+/datasets/
+/Dataset*/
+/raw_data/
+
+# --- Generated outputs ---
 outputs/
+output/
+processed/
+analysis_output/
 reports/
+manifests/
 
-# Model checkpoints
-models/*.pt
-models/*.pth
-models/*.onnx
-models/*.ckpt
-
-# Large archives and media
+# --- Archives ---
 *.zip
+*.7z
+*.rar
 *.tar
+*.tar.gz
+*.tgz
 *.gz
+
+# --- Videos and external test media ---
 *.mp4
 *.mov
 *.avi
 
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Environment variables
-.env
-.env.*
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Testing and tooling
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-
-# IDE
-.vscode/
-.idea/
-
-# Operating system
-.DS_Store
-Thumbs.db
+# --- Model weights and checkpoints ---
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+*.weights
+*.safetensors
