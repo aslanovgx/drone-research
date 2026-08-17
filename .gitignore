@@ -7,18 +7,28 @@ __pycache__/
 build/
 dist/
 
+# --- Testing and tooling ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
 # --- Virtual environments ---
 .venv/
 venv/
 env/
 ENV/
 
-# --- Environment / secrets ---
+# --- Environment variables and secrets ---
 .env
 .env.*
 !.env.example
 
-# --- IDE / OS artifacts ---
+# --- IDE and operating system ---
 .vscode/
 .idea/
 .DS_Store
@@ -31,34 +41,41 @@ desktop.ini
 *.bak
 *.log
 
-# --- Raw datasets (must never be tracked) ---
-/data/
+# --- Local datasets ---
+data/*
+!data/raw/
+!data/processed/
+!data/annotations/
+!data/classifier/
+!data/external_test/
+
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+data/annotations/*
+!data/annotations/.gitkeep
+
+data/classifier/*
+!data/classifier/.gitkeep
+
+data/external_test/*
+!data/external_test/.gitkeep
+
 /dataset/
 /datasets/
 /Dataset*/
 /raw_data/
 
-# --- Generated outputs (analysis reports, processed images, manifests) ---
-/outputs/
-/output/
-/processed/
-/analysis_output/
-/reports/
-/manifests/
-
-# --- Images only inside dataset & output locations, not globally ---
-/data/**/*.jpg
-/data/**/*.jpeg
-/data/**/*.png
-/dataset/**/*.jpg
-/dataset/**/*.jpeg
-/dataset/**/*.png
-/outputs/**/*.jpg
-/outputs/**/*.jpeg
-/outputs/**/*.png
-/processed/**/*.jpg
-/processed/**/*.jpeg
-/processed/**/*.png
+# --- Generated outputs ---
+outputs/
+output/
+processed/
+analysis_output/
+reports/
+manifests/
 
 # --- Archives ---
 *.zip
@@ -67,8 +84,14 @@ desktop.ini
 *.tar
 *.tar.gz
 *.tgz
+*.gz
 
-# --- Model weights / checkpoints ---
+# --- Videos and external test media ---
+*.mp4
+*.mov
+*.avi
+
+# --- Model weights and checkpoints ---
 *.pt
 *.pth
 *.onnx
