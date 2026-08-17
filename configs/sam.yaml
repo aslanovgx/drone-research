@@ -19,7 +19,8 @@ video:
   offload_state_to_cpu: true
 
 model:
-  type: "sam2.1_hiera_small"   # It might change
+  type: "sam2.1_hiera_small"
+  device: "auto"  # auto | cuda | mps | cpu
   checkpoint_path: "checkpoints/sam2.1_hiera_small.pt"
   config_path: "configs/sam2.1/sam2.1_hiera_s.yaml"
 

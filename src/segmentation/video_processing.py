@@ -4,8 +4,8 @@ import json
 import numpy as np
 import torch
 
-from segmentation.mask_filter import filter_masks_quality
-from segmentation.tiling import deduplicate_masks, mask_to_bbox
+from .mask_filter import filter_masks_quality
+from .tiling import deduplicate_masks, mask_to_bbox
 
 
 def extract_sequential_frames(video_path, output_dir, max_frames=None):

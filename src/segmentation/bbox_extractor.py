@@ -1,69 +1,162 @@
-import cv2
 import json
+from pathlib import Path
+
+import cv2
 import numpy as np
-import os
 
 
 def mask_to_bbox_xywh(mask):
-    """Returns global [x, y, width, height] format for any mask dictionary."""
-    if "bbox" in mask and mask["bbox"] is not None:
-        return [int(v) for v in mask["bbox"]]
+    """Return [x, y, width, height] for a SAM mask."""
 
-    seg = mask.get("segmentation")
-    if seg is None:
+    if "bbox" in mask and mask["bbox"] is not None:
+        return [int(value) for value in mask["bbox"]]
+
+    segmentation = mask.get("segmentation")
+
+    if segmentation is None:
         return [0, 0, 0, 0]
 
-    ys, xs = seg.nonzero()
+    ys, xs = segmentation.nonzero()
+
     if len(xs) == 0:
         return [0, 0, 0, 0]
 
-    x, y = int(xs.min()), int(ys.min())
-    w = int(xs.max() - x + 1)
-    h = int(ys.max() - y + 1)
+    x = int(xs.min())
+    y = int(ys.min())
+    width = int(xs.max() - x + 1)
+    height = int(ys.max() - y + 1)
 
-    ox, oy = mask.get("mask_offset", (0, 0))
-    return [x + ox, y + oy, w, h]
+    offset_x, offset_y = mask.get(
+        "mask_offset",
+        (0, 0),
+    )
+
+    return [
+        x + offset_x,
+        y + offset_y,
+        width,
+        height,
+    ]
 
 
-def generate_crop(image, bbox, out_path, size=(224, 224)):
-    """Safely crops bbox from image, handling boundary and empty cases."""
-    img_h, img_w = image.shape[:2]
-    x, y, w, h = bbox
+def generate_crop(
+    image,
+    bbox,
+    output_path,
+    size=(224, 224),
+):
+    """Create and save a classifier-ready crop."""
 
-    x1 = max(0, min(int(x), img_w))
-    y1 = max(0, min(int(y), img_h))
-    x2 = max(0, min(int(x + w), img_w))
-    y2 = max(0, min(int(y + h), img_h))
+    image_height, image_width = image.shape[:2]
+    x, y, width, height = bbox
+
+    x1 = max(0, min(int(x), image_width))
+    y1 = max(0, min(int(y), image_height))
+    x2 = max(0, min(int(x + width), image_width))
+    y2 = max(0, min(int(y + height), image_height))
 
     if x2 <= x1 or y2 <= y1:
-        crop = np.zeros((size[1], size[0], 3), dtype=np.uint8)
-    else:
-        crop = image[y1:y2, x1:x2]
-        if crop.size == 0:
-            crop = np.zeros((size[1], size[0], 3), dtype=np.uint8)
-        else:
-            crop = cv2.resize(crop, size)
+        raise ValueError(
+            f"Invalid bounding box for crop: {bbox}"
+        )
 
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    cv2.imwrite(out_path, cv2.cvtColor(crop, cv2.COLOR_RGB2BGR))
+    crop = image[y1:y2, x1:x2]
+
+    if crop.size == 0:
+        raise ValueError(
+            f"Empty crop generated for bounding box: {bbox}"
+        )
+
+    crop = cv2.resize(
+        crop,
+        size,
+        interpolation=cv2.INTER_AREA,
+    )
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    saved = cv2.imwrite(
+        str(path),
+        cv2.cvtColor(
+            crop,
+            cv2.COLOR_RGB2BGR,
+        ),
+    )
+
+    if not saved:
+        raise OSError(
+            f"Crop could not be saved: {path}"
+        )
+
+    return path.as_posix()
 
 
-def export_segments(image, masks, crops_dir, json_path):
-    os.makedirs(crops_dir, exist_ok=True)
+def export_segments(
+    image,
+    masks,
+    crops_dir,
+    json_path,
+):
+    """Export valid SAM segments using the shared schema format."""
+
     results = []
-    for i, m in enumerate(masks):
-        bbox = mask_to_bbox_xywh(m)
-        crop_path = f"{crops_dir}/segment_{i}.png"
-        generate_crop(image, bbox, crop_path)
 
-        results.append({
-            "segment_id": i,
-            "bbox": bbox,
-            "area": int(m.get("area", 0)),
-            "sam_score": round(float(m.get("predicted_iou", 0.0)), 4),
-            "crop_path": crop_path
-        })
+    for mask in masks:
+        bbox_values = mask_to_bbox_xywh(mask)
+        x, y, width, height = bbox_values
+        area = int(mask.get("area", 0))
 
-    with open(json_path, "w") as f:
-        json.dump(results, f, indent=2)
-    return results
+        if width <= 0 or height <= 0 or area <= 0:
+            continue
+
+        segment_id = len(results)
+
+        crop_path = (
+            Path(crops_dir)
+            / f"segment_{segment_id}.png"
+        )
+
+        saved_crop_path = generate_crop(
+            image=image,
+            bbox=bbox_values,
+            output_path=crop_path,
+        )
+
+        sam_score = round(
+            float(mask.get("predicted_iou", 0.0)),
+            4,
+        )
+
+        sam_score = max(
+            0.0,
+            min(sam_score, 1.0),
+        )
+
+        results.append(
+            {
+                "segment_id": segment_id,
+                "bbox": {
+                    "x": x,
+                    "y": y,
+                    "width": width,
+                    "height": height,
+                },
+                "area": area,
+                "sam_score": sam_score,
+                "crop_path": saved_crop_path,
+            }
+        )
+
+    output_path = Path(json_path)
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    output_path.write_text(
+        json.dumps(results, indent=2),
+        encoding="utf-8",
+    )
+
+    return results

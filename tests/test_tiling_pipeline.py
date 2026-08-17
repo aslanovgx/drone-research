@@ -318,13 +318,28 @@ class TestTilingPipeline(unittest.TestCase):
 
         # Verify exact required keys
         self.assertEqual(item["segment_id"], 0)
-        self.assertEqual(item["bbox"], [120, 85, 240, 190])
+        self.assertEqual(
+    item["bbox"],
+    {
+        "x": 120,
+        "y": 85,
+        "width": 240,
+        "height": 190,
+    },
+)
         self.assertEqual(item["area"], 32840)
         self.assertEqual(item["sam_score"], 0.94)
         self.assertEqual(item["crop_path"], "outputs/test_crops/segment_0.png")
 
         self.assertTrue(os.path.exists(json_path))
         self.assertTrue(os.path.exists("outputs/test_crops/segment_0.png"))
+
+        from src.utils.schemas import SegmentPrediction
+
+        prediction = SegmentPrediction.model_validate(item)
+
+        self.assertEqual(prediction.segment_id, 0)
+        self.assertEqual(prediction.bbox.width, 240)
 
         # Clean up test output
         if os.path.exists(json_path):

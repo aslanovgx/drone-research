@@ -1,95 +1,217 @@
-# SAM 2.1 Drone Object Segmentation Setup & Architecture Documentation
+# SAM 2.1 Drone Segmentation Setup
 
 ## 1. Overview
-Bu proyekt yüksək rezolyusiyalı (təxminən 9504×6336 / ~60MP) dron və ortofoto şəkillərində obyektlərin avtomatik seqmentasiyası, paçalara bölünmə (tiling), spatial grid indekslənməsi, sərhəd maskalarının çox-şərtli birləşdirilməsi (stitching), kəsilmiş maska crop-larının generasiyası və video kadrlarında Frame 0 auto-discovery daxil olmaqla temporal maska izlənməsi (`SAM2VideoPredictor`) üçün hazırlanmış SAM 2.1 (Segment Anything Model 2.1) əsaslı sistemdir.
 
-> **MÜHÜM SCOPE MƏHDUDİYYƏTİ**: Təsnifatçı (Classifier - ResNet, EfficientNet, ViT) modellərinin inteqrasiyası bu layihənin scope-undan kənardır. Layihənin yekun məsuliyyəti **SAM 2.1 seqmentasiyası, bounding box, 224x224 crop-lar və JSON metadata eksportudur**.
+Bu modul yüksək rezolyusiyalı drone şəkillərində avtomatik obyekt segmentasiyası üçün Meta SAM 2.1 modelindən istifadə edir.
+
+ArcGIS Packing House District datasetindəki şəkillərin ölçüsü `9504×6336` olduğuna görə şəkillər birbaşa bütöv şəkildə modelə verilmir. Modul onları overlap olan tile-lara bölür, hər tile üzərində maskalar yaradır, maskaları filtrasiya və deduplication edir, sonra bounding box və classifier-ready crop-lar çıxarır.
+
+Segmentation modulunun əsas nəticələri:
+
+- SAM maskaları;
+- `[x, y, width, height]` əsasında hesablanan bounding box-lar;
+- classifier üçün `224×224` crop şəkilləri;
+- SAM confidence göstəriciləri;
+- shared schema ilə uyğun JSON metadata.
+
+Classifier modelinin implementasiyası bu modulun scope-una daxil deyil. Segmentation nəticələri ümumi layihədə classifier mərhələsinə ötürülür.
+
+Ümumi pipeline:
+
+```text
+Raw Drone Image
+        ↓
+SAM 2.1 Automatic Mask Generation
+        ↓
+Mask Filtering
+        ↓
+Mask Stitching and Deduplication
+        ↓
+Bounding Box Extraction
+        ↓
+Classifier-Ready Crop Generation
+        ↓
+SegmentPrediction JSON
+        ↓
+Classifier
+```
 
 ---
 
-## 2. Repository Architecture
-Layihənin fayl strukturu və modulların funksiyaları:
+## 2. Model Selection
+
+İstifadə edilən model:
+
+```text
+SAM 2.1 Hiera-Small
+```
+
+Modelin seçilmə səbəbləri:
+
+- SAM 1 ilə müqayisədə daha yeni arxitekturadır;
+- statik şəkilləri və videoları dəstəkləyir;
+- automatic mask generation imkanına malikdir;
+- Hiera-Small variantı keyfiyyət və resurs istifadəsi arasında balans yaradır;
+- böyük drone şəkillərində tiling ilə istifadə edilə bilir.
+
+Model faylları:
+
+```text
+Checkpoint:
+checkpoints/sam2.1_hiera_small.pt
+
+Model config:
+configs/sam2.1/sam2.1_hiera_s.yaml
+```
+
+`config_path` quraşdırılmış rəsmi SAM 2 package daxilindəki Hydra model konfiqurasına istinad edir.
+
+---
+
+## 3. Repository Structure
 
 ```text
 drone-research/
 ├── checkpoints/
-│   └── sam2.1_hiera_small.pt        # Pretrained SAM 2.1 Hiera-Small model çəkiləri (~184MB) [IMPLEMENTED]
+│   └── sam2.1_hiera_small.pt
 ├── configs/
-│   └── sam.yaml                     # Mərkəzi konfiqurasiya faylı [IMPLEMENTED]
+│   └── sam.yaml
 ├── data/
-│   ├── raw/                         # İlkin dron datasets (Esri Packing House District və s.) [IMPLEMENTED]
-│   └── samples/                     # Test üçün istifadə olunan sample şəkillər (sample_01..13.jpg) [IMPLEMENTED]
+│   ├── raw/
+│   ├── processed/
+│   └── classifier/
 ├── docs/
-│   └── sam_setup.md                 # Ətraflı texniki sənədləşdirmə faylı [IMPLEMENTED]
+│   └── sam_setup.md
 ├── outputs/
-│   ├── crops/                       # Kəsilmiş 224x224 PNG segment şəkilləri [IMPLEMENTED]
-│   ├── segmentation_results.json    # Eksport olunan statik JSON metadata faylı [IMPLEMENTED]
-│   └── video_results.json           # Eksport olunan video temporal JSON metadata faylı [IMPLEMENTED]
-├── sam2_repo/                       # Official SAM 2 repository mənbə kodu [IMPLEMENTED]
+│   ├── crops/
+│   ├── segmentation_results.json
+│   └── video_results.json
+├── requirements/
+│   └── sam.txt
+├── sam2_repo/
 ├── scripts/
-│   └── test_mask_generation.py      # Əsas icra, export və vizualizasiya scripti [IMPLEMENTED]
+│   └── test_mask_generation.py
 ├── src/
-│   └── segmentation/
-│       ├── __init__.py
-│       ├── bbox_extractor.py        # BBox hesablanması, crop kəsimi və JSON eksportu [IMPLEMENTED]
-│       ├── mask_filter.py           # Keyfiyyət süzgəci və daxili tile sərhəd filtri [IMPLEMENTED]
-│       ├── sam_model.py             # SAM 2.1 modelinin yüklənməsi və strategiya seçimi [IMPLEMENTED]
-│       ├── tiling.py                # Tile generasiyası, SpatialGridIndex, DSU stitching, dedup [IMPLEMENTED]
-│       └── video_processing.py      # Frame 0 auto-discovery & SAM2VideoPredictor temporal video pipeline [IMPLEMENTED]
+│   ├── segmentation/
+│   │   ├── bbox_extractor.py
+│   │   ├── mask_filter.py
+│   │   ├── sam_model.py
+│   │   ├── tiling.py
+│   │   └── video_processing.py
+│   └── utils/
+│       └── schemas.py
 ├── tests/
-│   ├── test_tiling_pipeline.py      # 15 ədəd avtomatlaşdırılmış unit və regressiya testi [IMPLEMENTED]
-│   ├── test_spatial_index.py        # 8 ədəd SpatialGridIndex testləri [IMPLEMENTED]
-│   ├── test_performance_equivalence.py # 2 ədəd nəticə ekvivalentliyi və candidate reduction testləri [IMPLEMENTED]
-│   ├── test_video_pipeline.py       # 7 ədəd video pipeline, Frame 0 auto-discovery & scaling testləri [IMPLEMENTED]
-│   └── test_video_integration.py    # Real SAM2VideoPredictor CUDA integration testi [IMPLEMENTED]
-├── README.md                        # Layihə haqqında ümumi məlumat [IMPLEMENTED]
-├── requirements.txt                 # Asılılıqların siyahısı [IMPLEMENTED]
-├── SAM_research_notes.md            # SAM 1 vs SAM 2.1 tədqiqat qeydləri [EXPERIMENTAL/NOTES]
-└── test_sam2.py                    # Modelin yüklənməsini yoxlayan minimal test scripti [IMPLEMENTED]
+│   ├── test_performance_equivalence.py
+│   ├── test_spatial_index.py
+│   ├── test_tiling_pipeline.py
+│   ├── test_video_integration.py
+│   └── test_video_pipeline.py
+├── SAM_research_notes.md
+└── test_sam2.py
+```
+
+Aşağıdakı fayl və qovluqlar local saxlanılır və GitHub-a commit edilmir:
+
+- `checkpoints/`;
+- `sam2_repo/`;
+- `data/` daxilindəki datasetlər;
+- `outputs/`;
+- model weights;
+- generated crops;
+- generated JSON nəticələri.
+
+---
+
+## 4. Requirements
+
+SAM modulu üçün birbaşa dependency-lər:
+
+```text
+numpy>=1.26
+opencv-python>=4.8
+PyYAML>=6.0,<7.0
+torch>=2.5.1
+torchvision>=0.20.1
+```
+
+Onlar aşağıdakı faylda saxlanılır:
+
+```text
+requirements/sam.txt
+```
+
+Dependency-ləri quraşdırmaq üçün:
+
+```bash
+python -m pip install -r requirements/sam.txt
 ```
 
 ---
 
-## 3. Pipeline Architecture
+## 5. Install Official SAM 2
 
-### Video Temporal Pipeline Execution Flow:
+Meta-nın rəsmi SAM 2 repository-sini layihənin root qovluğunda clone et:
+
+```bash
+git clone https://github.com/facebookresearch/sam2.git sam2_repo
 ```
-Video File / Stream (.mp4)
-       │
-       ▼ [IMPLEMENTED]
-1. Sequential Frame Extraction (Unbroken sequence: 000000.jpg, 000001.jpg, 000002.jpg...)
-       │
-       ▼ [IMPLEMENTED]
-2. Frame 0 Automatic Object Discovery (SAM 2.1 Automatic Generator + Quality Filter)
-       │  (No hardcoded fallback box; raises ValueError if 0 objects found)
-       ▼ [IMPLEMENTED]
-3. Initial Prompt Registration (SAM2VideoPredictor.add_new_points_or_box on Frame 0)
-       │  (Assigned deterministic track IDs: 1, 2, 3...)
-       ▼ [IMPLEMENTED]
-4. Continuous Temporal Mask Propagation (SAM2VideoPredictor.propagate_in_video across ALL frames)
-       │  (VRAM Safety: offload_video_to_cpu=True, offload_state_to_cpu=True)
-       ▼ [IMPLEMENTED]
-5. Output Export Interval Filtering (e.g. export JSON records every output_interval=30 frames)
-       │
-       ▼ [IMPLEMENTED]
-6. Coordinate Scale Conversion & Clamping (scale_x, scale_y back to ORIGINAL video resolution)
-       │
-       ▼ [IMPLEMENTED]
-7. JSON Metadata Export (outputs/video_results.json with track_id, bbox, area, sam_score)
+
+SAM 2-ni editable package kimi quraşdır:
+
+```bash
+python -m pip install -e sam2_repo
 ```
+
+Quraşdırmanı yoxla:
+
+```bash
+python -c "
+from sam2.build_sam import build_sam2
+from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+
+print('SAM 2 import: PASSED')
+"
+```
+
+`sam2_repo/` `.gitignore` daxilindədir və GitHub-a push edilmir.
 
 ---
 
-## 4. Model Selection
+## 6. Download SAM 2.1 Checkpoint
 
-- `SAM 1 (ViT-B, ViT-L, ViT-H)`: **[EXPERIMENTAL/HISTORICAL]** Baseline referans.
-- `SAM 2.1 Hiera-Small`: **[IMPLEMENTED]** Aktiv pipeline-da istifadə olunan əsas model.
-  - Checkpoint: `checkpoints/sam2.1_hiera_small.pt` (~184.4 MB)
-  - Config: `configs/sam2.1/sam2.1_hiera_s.yaml`
+Checkpoint qovluğunu yarat:
+
+```bash
+mkdir -p checkpoints
+```
+
+SAM 2.1 Hiera-Small checkpoint-i yüklə:
+
+```bash
+curl -L \
+  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt \
+  -o checkpoints/sam2.1_hiera_small.pt
+```
+
+Faylın mövcudluğunu yoxla:
+
+```bash
+ls -lh checkpoints/sam2.1_hiera_small.pt
+```
+
+Checkpoint GitHub-a commit edilməməlidir.
 
 ---
 
-## 5. Configuration (`configs/sam.yaml`) **[IMPLEMENTED]**
+## 7. Configuration
+
+SAM konfiqurasiyası:
+
+```text
+configs/sam.yaml
+```
+
+Cari konfiqurasiya:
 
 ```yaml
 preprocessing:
@@ -105,8 +227,8 @@ spatial_index:
   cell_size: 1536
 
 video:
-  output_interval: 30  # Export JSON interval (frames). Predictor processes all unbroken sequential frames.
-  frame_interval: 30   # Backward compatibility alias
+  output_interval: 30
+  frame_interval: 30
   strategy: "resize"
   predictor_enabled: true
   offload_video_to_cpu: true
@@ -114,6 +236,7 @@ video:
 
 model:
   type: "sam2.1_hiera_small"
+  device: "auto"
   checkpoint_path: "checkpoints/sam2.1_hiera_small.pt"
   config_path: "configs/sam2.1/sam2.1_hiera_s.yaml"
 
@@ -121,7 +244,6 @@ mask_filter:
   min_area: 1500
   min_stability_score: 0.9
   min_predicted_iou: 0.85
-
   reject_tile_edge: true
   edge_tolerance: 2
 
@@ -132,81 +254,460 @@ output:
   crop_size: [224, 224]
 ```
 
+### Device selection
+
+`device: "auto"` olduqda sistem bu ardıcıllıqla seçim edir:
+
+```text
+CUDA → MPS → CPU
+```
+
+- NVIDIA GPU varsa: `cuda`;
+- Apple Silicon və MPS aktivdirsə: `mps`;
+- digərləri yoxdursa: `cpu`.
+
+Device-i manual seçmək də mümkündür:
+
+```yaml
+device: "cuda"
+```
+
+```yaml
+device: "mps"
+```
+
+```yaml
+device: "cpu"
+```
+
+Manual seçilən device mövcud deyilsə, modul aydın `RuntimeError` qaytarır.
+
+Device seçimini yoxlamaq üçün:
+
+```bash
+python -c "
+from src.segmentation.sam_model import load_config, resolve_device
+
+config = load_config()
+print('Selected device:', resolve_device(config))
+"
+```
+
+Apple Silicon Mac-da gözlənilən nəticə:
+
+```text
+Selected device: mps
+```
+
 ---
 
-## 6. Native SAM2 Video Predictor Pipeline & Frame 0 Auto-Discovery **[IMPLEMENTED]**
+## 8. Static Image Pipeline
 
-### 1. Frame 0 Automatic Object Discovery:
-- Frame 0 avtomatik olaraq `discover_initial_boxes_frame_0` funksiyası ilə seqmentasiya edilir.
-- Qeyri-stabil və kiçik maskalar süzülür, yalnız etibarlı bounding box-lar tapılır.
-- Hər bir obyektə deterministik `track_id` (1, 2, 3...) verilir.
-- Əgər Frame 0-da 0 obyekt tapılarsa, hardcoded fallback box İSTİFADƏ EDİLMİR, aydın `ValueError` xətası qaldırılır.
+ArcGIS şəkilləri `9504×6336` ölçüsündədir. Bu şəkillərin bütöv şəkildə SAM modelinə verilməsi yüksək yaddaş istifadəsinə səbəb ola bilər.
 
-### 2. Unbroken Sequential Frame Extraction & Temporal Continuity:
-- Videonun kadrları `extract_sequential_frames` ilə ardıcıl şəkildə (`000000.jpg`, `000001.jpg`, `000002.jpg`...) kəsilir.
-- Predictor bütün ardıcıl kadrlar üzərində temporal maska ötürməsi (`propagate_in_video`) edir, kadrlararası izləmə yaddaşı qırılmır.
+Buna görə static image pipeline tiling istifadə edir:
 
-### 3. Output Export Interval:
-- `output_interval: 30` göstəricisi yalnız eksport olunan `outputs/video_results.json` faylı üçün tətbiq olunur (`frame_idx % output_interval == 0`). Predictor isə kadrlararası yaddaş zəncirini qorumaq üçün bütün ardıcıl kadrları emal edir.
+```text
+9504×6336 Drone Image
+        ↓
+1536×1536 Tiles
+        ↓
+256 px Overlap
+        ↓
+SAM Mask Generation per Tile
+        ↓
+Global Coordinate Conversion
+        ↓
+Boundary-Aware Stitching
+        ↓
+Mask Deduplication
+        ↓
+Quality Filtering
+        ↓
+Bounding Box and Crop Export
+```
 
-### 4. Video Koordinat Scalinq Və JSON Output:
-Bütün maska və bbox-lar **ORİJİNAL video kadr rezolyusiyasına** (`w_orig`, `h_orig`) qaytarılır və clamp olunur.
+Tiling parametrləri:
 
-Çıxış faylı: `outputs/video_results.json`
+```yaml
+tile_size: 1536
+overlap: 256
+iou_threshold: 0.7
+```
+
+Overlap tile sərhədində bölünən obyektlərin sonradan birləşdirilməsinə kömək edir.
+
+---
+
+## 9. Mask Filtering
+
+Maskalar aşağıdakı göstəricilərə əsasən filtrasiya edilir:
+
+```yaml
+min_area: 1500
+min_stability_score: 0.9
+min_predicted_iou: 0.85
+```
+
+Filtrasiya zamanı:
+
+- çox kiçik maskalar silinir;
+- aşağı stability score olan maskalar silinir;
+- aşağı predicted IoU olan maskalar silinir;
+- tile sərhədində yaranan lazımsız artefaktlar yoxlanılır;
+- real image sərhədinə toxunan obyektlər qorunur;
+- overlap səbəbindən yaranan təkrarlanan maskalar birləşdirilir.
+
+---
+
+## 10. Bounding Box Format
+
+SAM maskasından bounding box aşağıdakı daxili formatda hesablanır:
+
+```text
+[x, y, width, height]
+```
+
+Shared JSON contract daxilində isə bbox object kimi saxlanılır:
+
 ```json
 {
-  "video_path": "data/samples/sample_video.mp4",
-  "original_width": 3840,
-  "original_height": 2160,
-  "total_processed_frames": 300,
-  "exported_frames": 10,
-  "output_interval": 30,
-  "frames": [
-    {
-      "frame_index": 0,
-      "timestamp_sec": 0.0,
-      "segments": [
-        {
-          "track_id": 1,
-          "bbox": [384, 216, 768, 432],
-          "area": 32840,
-          "sam_score": 0.90
-        }
-      ]
-    }
-  ]
+  "x": 120,
+  "y": 85,
+  "width": 240,
+  "height": 190
 }
 ```
 
----
-
-## 7. Testing Və Verifikasiya Nəticələri **[IMPLEMENTED]**
-
-İcra əmri: `python -m unittest discover -s tests -v`
-
-### Dəqiq Test Qrupları:
-- **`test_tiling_pipeline.py`**: 15 test (Keçdi - PASSED)
-- **`test_spatial_index.py`**: 8 test (Keçdi - PASSED)
-- **`test_performance_equivalence.py`**: 2 test (Keçdi - PASSED)
-- **`test_video_pipeline.py`**: 7 test (Keçdi - PASSED)
-- **`test_video_integration.py`**: 1 test (Keçdi - PASSED / Real CUDA SAM2VideoPredictor integration testi)
-- **Ümumi Test Sayı**: **33 test** **[VERIFIED]**
+Bu format `src/utils/schemas.py` daxilindəki `BoundingBox` modelinə uyğundur.
 
 ---
 
-## 8. How to Run
+## 11. Segment Output Contract
 
-### 1. Bütün Unit Testləri İcra Etmək:
-```bash
-python -m unittest discover -s tests -v
+Hər valid SAM maskası aşağıdakı shared schema formatında export edilir:
+
+```json
+{
+  "segment_id": 0,
+  "bbox": {
+    "x": 120,
+    "y": 85,
+    "width": 240,
+    "height": 190
+  },
+  "area": 32840,
+  "sam_score": 0.94,
+  "crop_path": "outputs/crops/segment_0.png"
+}
 ```
 
-### 2. Statik Şəkil Pipeline-nı İcra Etmək:
+Bu nəticə aşağıdakı Pydantic modeli ilə validate edilir:
+
+```python
+class SegmentPrediction(BaseModel):
+    segment_id: int
+    bbox: BoundingBox
+    area: int
+    sam_score: float
+    crop_path: str | None = None
+```
+
+Invalid segmentlər export edilmir:
+
+- `width <= 0`;
+- `height <= 0`;
+- `area <= 0`;
+- boş crop.
+
+---
+
+## 12. Classifier Crop Generation
+
+Hər valid segment üçün crop yaradılır:
+
+```text
+outputs/crops/segment_<segment_id>.png
+```
+
+Default crop ölçüsü:
+
+```text
+224×224
+```
+
+Crop aşağıdakı mərhələdə classifier inputu kimi istifadə olunur:
+
+```text
+SAM Segment
+    ↓
+Bounding Box
+    ↓
+224×224 Crop
+    ↓
+Classifier
+    ↓
+Class Name + Confidence
+```
+
+---
+
+## 13. Running Static Segmentation
+
+Əvvəl local sample image hazırla. Dataset şəkilləri repository-yə commit edilməməlidir.
+
+Static segmentation scriptini işə sal:
+
 ```bash
 python -u scripts/test_mask_generation.py
 ```
 
-### 3. Model Yüklənmə Testi:
+Script aşağıdakı əməliyyatları aparır:
+
+1. SAM 2.1 modelini yükləyir;
+2. input şəklini oxuyur;
+3. tiling tətbiq edir;
+4. avtomatik maskalar yaradır;
+5. maskaları filtrasiya edir;
+6. bounding box-lar çıxarır;
+7. classifier-ready crop-lar yaradır;
+8. segmentation JSON faylı export edir.
+
+Default outputlar:
+
+```text
+outputs/crops/
+outputs/segmentation_results.json
+```
+
+---
+
+## 14. Video Pipeline
+
+Video pipeline SAM2 video predictor istifadə edir:
+
+```text
+Input Video
+    ↓
+Sequential Frame Extraction
+    ↓
+Frame 0 Automatic Object Discovery
+    ↓
+Initial Bounding Box Prompts
+    ↓
+SAM2VideoPredictor
+    ↓
+Temporal Mask Propagation
+    ↓
+Coordinate Scaling and Clamping
+    ↓
+Video JSON Export
+```
+
+Frame 0 üzərində obyekt tapılmadıqda hardcoded fallback bounding box istifadə edilmir. Bunun əvəzinə aydın xəta qaytarılır.
+
+Video nəticələri:
+
+```text
+outputs/video_results.json
+```
+
+Video inference üçün uyğun runtime hardware və local SAM 2 checkpoint tələb olunur.
+
+---
+
+## 15. Testing
+
+Bütün unit və integration testlərini işə sal:
+
+```bash
+python -m pytest tests -v
+```
+
+Son local integration nəticəsi:
+
+```text
+36 tests collected
+35 passed
+1 skipped
+```
+
+Test qrupları:
+
+- pipeline merge və threshold testləri;
+- spatial grid index testləri;
+- tiling testləri;
+- mask stitching və deduplication testləri;
+- bounding box testləri;
+- classifier crop generation testi;
+- shared `SegmentPrediction` validation testi;
+- video utility testləri;
+- performance equivalence testləri.
+
+Skip edilən test real SAM2 video integration testidir. Bu test üçün aşağıdakılar tələb olunur:
+
+- local `sam2_repo/`;
+- SAM 2.1 checkpoint;
+- uyğun runtime hardware;
+- integration test environment.
+
+Yalnız segmentation export testini işə salmaq üçün:
+
+```bash
+python -m pytest \
+  tests/test_tiling_pipeline.py::TestTilingPipeline::test_15_export_segments_json_format \
+  -v
+```
+
+---
+
+## 16. Model Loading Test
+
+SAM 2 package və checkpoint hazır olduqdan sonra model loading testini işə sal:
+
 ```bash
 python test_sam2.py
 ```
+
+Gözlənilən nəticə:
+
+```text
+Model successfully loaded
+```
+
+Əgər SAM 2 quraşdırılmayıbsa, `load_sam_model()` aşağıdakı quraşdırma istiqamətini göstərən xəta qaytarır:
+
+```text
+SAM 2 is not installed. Clone the official SAM 2 repository into
+sam2_repo/ and run: python -m pip install -e sam2_repo
+```
+
+---
+
+## 17. Dataset Handoff
+
+Data preprocessing modulu seçilmiş ArcGIS şəkillərini bu formada hazırlayır:
+
+```text
+Raw ArcGIS MPO/JPEG
+        ↓
+MPO Frame 0
+        ↓
+Single-Frame RGB JPEG
+        ↓
+Original 9504×6336 Resolution
+        ↓
+SAM Tiling Pipeline
+```
+
+Data modulu şəkli əvvəlcədən `1024×1024` ölçüsünə resize etmir. Original resolution saxlanılır və ölçü idarəsi SAM modulunun tiling mərhələsində aparılır.
+
+Bu contract haqqında əlavə məlumat:
+
+```text
+docs/dataset.md
+```
+
+---
+
+## 18. Generated Files and Git Safety
+
+Aşağıdakılar GitHub-a commit edilməməlidir:
+
+```text
+checkpoints/
+sam2_repo/
+data/
+outputs/
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.mov
+*.avi
+```
+
+Commit etməzdən əvvəl yoxla:
+
+```bash
+git status
+```
+
+Dataset, checkpoint, generated crop və output JSON faylları görünməməlidir.
+
+---
+
+## 19. Troubleshooting
+
+### `ModuleNotFoundError: No module named 'sam2'`
+
+SAM 2 repository-sini clone və install et:
+
+```bash
+git clone https://github.com/facebookresearch/sam2.git sam2_repo
+python -m pip install -e sam2_repo
+```
+
+### `ModuleNotFoundError: No module named 'torch'`
+
+SAM dependency-lərini quraşdır:
+
+```bash
+python -m pip install -r requirements/sam.txt
+```
+
+### CUDA mövcud deyil
+
+`configs/sam.yaml` daxilində bunu saxla:
+
+```yaml
+device: "auto"
+```
+
+Sistem avtomatik MPS və ya CPU seçəcək.
+
+### Checkpoint tapılmır
+
+Bu faylın mövcudluğunu yoxla:
+
+```bash
+ls -lh checkpoints/sam2.1_hiera_small.pt
+```
+
+### Input image açıla bilmir
+
+Input path-i yoxla. Modul invalid path üçün `FileNotFoundError` qaytarır.
+
+### MPS-də bəzi operation-lar dəstəklənmir
+
+CPU istifadə et:
+
+```yaml
+model:
+  device: "cpu"
+```
+
+---
+
+## 20. Module Deliverables
+
+SAM segmentation modulunun əsas deliverable-ları:
+
+```text
+src/segmentation/sam_model.py
+src/segmentation/mask_filter.py
+src/segmentation/bbox_extractor.py
+src/segmentation/tiling.py
+src/segmentation/video_processing.py
+configs/sam.yaml
+requirements/sam.txt
+docs/sam_setup.md
+scripts/test_mask_generation.py
+tests/test_tiling_pipeline.py
+tests/test_spatial_index.py
+tests/test_performance_equivalence.py
+tests/test_video_pipeline.py
+tests/test_video_integration.py
+```
+
+Modulun yekun çıxışı classifier və integration pipeline tərəfindən istifadə edilə bilən valid `SegmentPrediction` məlumatlarıdır.

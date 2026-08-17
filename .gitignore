@@ -1,24 +1,105 @@
-# Model checkpoints
-*.pth
-*.pt
-checkpoints/
-
-# Raw images and outputs
-data/raw/
-outputs/
-*.jpg
-*.jpeg
-*.png
-!docs/**/*.png
-
-# Environment
-venv/
+# --- Python ---
 __pycache__/
-*.pyc
-
-# IDE
-.idea/
-
-# Python
+*.py[cod]
+*$py.class
 *.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Testing and tooling ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment variables and secrets ---
+.env
+.env.*
+!.env.example
+
+# --- IDE and operating system ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Temporary files ---
+*.tmp
+*.temp
+*.bak
+*.log
+
+# --- Local datasets ---
+data/*
+!data/raw/
+!data/processed/
+!data/annotations/
+!data/classifier/
+!data/external_test/
+
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+data/annotations/*
+!data/annotations/.gitkeep
+
+data/classifier/*
+!data/classifier/.gitkeep
+
+data/external_test/*
+!data/external_test/.gitkeep
+
+/dataset/
+/datasets/
+/Dataset*/
+/raw_data/
+
+# --- Generated outputs ---
+outputs/
+output/
+processed/
+analysis_output/
+reports/
+manifests/
+
+# --- Archives ---
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+
+# --- Videos and external test media ---
+*.mp4
+*.mov
+*.avi
+
+# --- Model weights and checkpoints ---
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+*.weights
+*.safetensors
+
+# --- SAM local dependencies and checkpoints ---
+checkpoints/
 sam2_repo/
