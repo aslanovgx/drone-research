@@ -1,4 +1,6 @@
 # Ignore dataset contents, but allow placeholders
+data/
+
 data/raw/*
 !data/raw/.gitkeep
 
