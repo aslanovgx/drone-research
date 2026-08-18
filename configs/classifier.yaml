@@ -45,7 +45,7 @@ training:
   # `other` dominates nadir urban scenes (pavement, dirt, shadow). "auto" applies
   # inverse-frequency loss weights so the model cannot coast by always saying
   # `other`; "none" disables weighting.
-  class_weights: auto             # auto | none
+  class_weights: none             # auto | none
 
 checkpoint:
   path: checkpoints/classifier.pt # gitignored
