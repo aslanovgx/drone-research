@@ -1,0 +1,13 @@
+patch_id,source_index,source_filename,split,tile_row,tile_column,x,y,width,height,focus
+train_04_r1c0,4,211021_181636_464.jpg,train,1,0,0,3168,3168,3168,building_tree
+train_04_r1c1,4,211021_181636_464.jpg,train,1,1,3168,3168,3168,3168,building
+train_05_r0c0,5,211021_181725_897.jpg,train,0,0,0,0,3168,3168,tree
+train_05_r1c1,5,211021_181725_897.jpg,train,1,1,3168,3168,3168,3168,building_tree
+train_09_r0c1,9,211021_182010_331.jpg,train,0,1,3168,0,3168,3168,building
+train_16_r0c1,16,211021_182519_040.jpg,train,0,1,3168,0,3168,3168,building_tree
+validation_02_r0c2,2,211021_181455_147.jpg,validation,0,2,6336,0,3168,3168,building_car
+validation_02_r1c1,2,211021_181455_147.jpg,validation,1,1,3168,3168,3168,3168,tree_other
+validation_07_r1c1,7,211021_181853_249.jpg,validation,1,1,3168,3168,3168,3168,building_car
+validation_23_r1c0,23,211021_183027_818.jpg,validation,1,0,0,3168,3168,3168,tree_car
+validation_23_r1c1,23,211021_183027_818.jpg,validation,1,1,3168,3168,3168,3168,building
+validation_28_r1c2,28,211021_183349_153.jpg,validation,1,2,6336,3168,3168,3168,tree_building

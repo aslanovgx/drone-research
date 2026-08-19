@@ -530,7 +530,7 @@ def generate_masks_tiled(
     4. Multi-condition boundary-aware stitching across adjacent tiles.
     5. Post-stitching deduplication & boundary artifact filtering.
     """
-    from segmentation.mask_filter import filter_masks_quality, filter_boundary_artifacts
+    from .mask_filter import filter_masks_quality, filter_boundary_artifacts
 
     import torch
 

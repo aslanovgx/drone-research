@@ -80,7 +80,12 @@ def load_sam_model(config):
         device=device,
     )
 
-    return SAM2AutomaticMaskGenerator(sam2_model)
+    generator_config = config.get("mask_generator", {})
+
+    return SAM2AutomaticMaskGenerator(
+        sam2_model,
+        **generator_config,
+    )
 
 
 def generate_masks_from_image(
