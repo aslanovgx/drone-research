@@ -1,0 +1,38 @@
+# Configuration for the ArcGIS "Packing House District" dataset scripts.
+#
+# Filesystem locations are intentionally NOT stored here. They come from:
+#   DRONE_DATASET_ROOT  - raw dataset root (read-only, outside the repo)
+#   DRONE_OUTPUT_ROOT   - generated analysis/preprocessing outputs (outside the repo and dataset)
+# Both may be overridden with --dataset-root / --output-root on the CLI.
+
+dataset:
+  image_subdir: "Images"
+  accepted_extensions: [".jpg", ".jpeg"]
+  excluded_files: ["Thumbs.db"]
+
+selection:
+  method: "stratified"   # stratified | random
+  count: 30
+  seed: 42
+
+# Default is "none": selected images are exported unresized, at their
+# original 9504x6336 resolution, as standard single-frame JPEGs decoded
+# from MPO frame 0. This matches the confirmed SAM static-image input
+# contract (origin/feature/sam-segmentation @ bd1fe6b710f2672e6a1ab42f2dd20dcad2f457dc):
+# SAM performs its own 1536x1536 tiling (256px overlap) directly on
+# full-resolution input, so this component must not resize before handoff.
+# "letterbox", "center_crop", and "stretch" remain available as optional
+# tools for other uses, but must not be the default and are not used for
+# the SAM handoff. See docs/dataset.md for the full integration contract.
+preprocessing:
+  method: "none"    # none | letterbox | center_crop | stretch
+  # width/height are only used by letterbox / center_crop / stretch.
+  # They are ignored entirely when method is "none".
+  width: 1024
+  height: 1024
+  output_format: "jpg"
+  jpeg_quality: 95
+  background_color: [0, 0, 0]
+  mpo_frame: 0
+  overwrite: false
+  output_subdir: "selected_images"

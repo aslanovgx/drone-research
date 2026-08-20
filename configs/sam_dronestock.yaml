@@ -1,0 +1,37 @@
+preprocessing:
+  strategy: tiling
+  resize_max_dim: 1536
+  tiling:
+    tile_size: 2048
+    overlap: 256
+    iou_threshold: 0.7
+spatial_index:
+  enabled: true
+  cell_size: 1536
+video:
+  output_interval: 30
+  frame_interval: 30
+  strategy: resize
+  predictor_enabled: true
+  offload_video_to_cpu: true
+  offload_state_to_cpu: true
+model:
+  type: sam2.1_hiera_small
+  device: auto
+  checkpoint_path: checkpoints/sam2.1_hiera_small.pt
+  config_path: configs/sam2.1/sam2.1_hiera_s.yaml
+mask_filter:
+  min_area: 300
+  min_stability_score: 0.88
+  min_predicted_iou: 0.8
+  reject_tile_edge: true
+  edge_tolerance: 2
+output:
+  crops_dir: outputs/dronestock/crops
+  json_path: outputs/dronestock/segmentation_results.json
+  video_json_path: outputs/video_results.json
+  crop_size:
+  - 224
+  - 224
+mask_generator:
+  points_per_side: 32
