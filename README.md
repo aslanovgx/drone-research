@@ -1,166 +1,348 @@
-SAM-Based Drone Object Segmentation and Classification
+# 🚁 SAM-Based Drone Object Segmentation and Classification
 
-This project implements an end-to-end pipeline for detecting and classifying objects in aerial drone imagery.
+An end-to-end computer vision pipeline for **object segmentation and classification in aerial drone imagery**.
 
-The system uses SAM 2.1 to generate candidate object masks. Each valid mask is converted into a bounding box and a crop. A MobileNetV3-Small classifier then assigns one of four semantic classes to every crop.
+The system uses **SAM 2.1** to generate candidate object masks. Each valid mask is converted into a bounding box and image crop. A **MobileNetV3-Small** classifier then assigns one of four semantic classes to every crop.
 
-Pipeline
+---
 
-Drone image or extracted video frame
-        ↓
-SAM 2.1 mask generation
-        ↓
-Mask filtering, deduplication and boundary stitching
-        ↓
-Bounding-box and crop generation
-        ↓
-MobileNetV3-Small classification
-        ↓
-Class label and confidence filtering
-        ↓
-Annotated image and JSON output
+## 📌 Overview
 
-The final output contains:
+The project combines:
 
-* segmentation candidates;
-* bounding boxes;
-* class labels;
-* classifier confidence scores;
-* SAM confidence scores;
-* annotated images;
-* structured JSON prediction files.
+* **SAM 2.1** for automatic object segmentation
+* Mask filtering and deduplication
+* Boundary stitching
+* Bounding-box generation
+* Crop extraction
+* **MobileNetV3-Small** classification
+* Confidence-based filtering
+* Visualization
+* Structured JSON output
 
-Classes
+The complete pipeline can be executed on drone images and extracted video frames.
 
-The classifier currently supports four classes:
+---
 
-Class	Description
-building	Building roofs and dominant building structures
-car	Cars and other clearly visible road vehicles
-tree	Trees and dominant vegetation regions
-other	Roads, shadows, HVAC units, poles, signs and other non-target regions
+## 🔄 Pipeline
 
-The other class prevents every SAM region from being forced into a target object class.
+```text
+Drone Image / Extracted Video Frame
+                ↓
+       SAM 2.1 Mask Generation
+                ↓
+Mask Filtering, Deduplication
+    and Boundary Stitching
+                ↓
+ Bounding Box + Crop Generation
+                ↓
+ MobileNetV3-Small Classifier
+                ↓
+ Class Label + Confidence Filter
+                ↓
+ Annotated Image + JSON Output
+```
 
-Data
+---
 
-The ArcGIS Packing House District drone dataset was used for classifier dataset preparation.
+## 📤 Output
 
-Source images were divided geographically before crop generation to reduce spatial leakage between training and validation data.
+The final pipeline output contains:
 
-Split	Building	Car	Tree	Other	Total
-Training	49	63	57	118	287
-Validation	39	25	42	97	203
-Total	88	88	99	215	490
+* Segmentation candidates
+* Bounding boxes
+* Class labels
+* Classifier confidence scores
+* SAM confidence scores
+* Annotated images
+* Structured JSON prediction files
+
+---
+
+## 🏷️ Classes
+
+The classifier currently supports four semantic classes:
+
+| Class      | Description                                                           |
+| ---------- | --------------------------------------------------------------------- |
+| `building` | Building roofs and dominant building structures                       |
+| `car`      | Cars and other clearly visible road vehicles                          |
+| `tree`     | Trees and dominant vegetation regions                                 |
+| `other`    | Roads, shadows, HVAC units, poles, signs and other non-target regions |
+
+### Why is the `other` class important?
+
+The `other` class prevents every region proposed by SAM from being forced into one of the target object classes.
+
+This is especially important because SAM may generate masks for:
+
+* roads;
+* shadows;
+* rooftops containing mixed content;
+* HVAC units;
+* poles;
+* signs;
+* background regions;
+* other visually distinct objects.
+
+---
+
+## 📊 Data
+
+The **ArcGIS Packing House District drone dataset** was used for classifier dataset preparation.
+
+Source images were divided **geographically before crop generation** to reduce spatial leakage between the training and validation datasets.
+
+### Dataset Distribution
+
+| Split      | Building |    Car |   Tree |   Other |   Total |
+| ---------- | -------: | -----: | -----: | ------: | ------: |
+| Training   |       49 |     63 |     57 |     118 | **287** |
+| Validation |       39 |     25 |     42 |      97 | **203** |
+| **Total**  |   **88** | **88** | **99** | **215** | **490** |
 
 The repository includes reproducibility manifests for:
 
-* geographic source-image splitting;
-* source-patch selection;
-* crop labels and their original SAM crop paths.
+* Geographic source-image splitting
+* Source-patch selection
+* Crop labels
+* Original SAM crop paths
 
-The original images, generated crops, model checkpoints and videos are not committed because of their size and licensing constraints.
+> [!NOTE]
+> The original drone images, generated crops, model checkpoints and videos are not committed to the repository because of their size and licensing constraints.
 
-Classifier Results
+---
 
-The selected baseline is an unweighted MobileNetV3-Small classifier initialized with ImageNet weights.
+## 🧠 Classifier
 
-Validation results:
+The selected baseline classifier is:
 
-Metric	Result
-Accuracy	75.86%
-Macro F1	0.7717
+**MobileNetV3-Small**
 
-Per-class results:
+The model is initialized using **ImageNet pretrained weights** and fine-tuned on the generated drone-object crop dataset.
 
-Class	Precision	Recall	F1
-Building	0.6250	0.6410	0.6329
-Car	0.8000	0.9600	0.8727
-Other	0.7952	0.6804	0.7333
-Tree	0.7800	0.9286	0.8478
+---
 
-The strongest validation performance is currently obtained for cars and trees. Building classification remains more sensitive to roof scale, surrounding vegetation, shadows and domain shift.
+## 📈 Classifier Results
 
-External DroneStock Evaluation
+### Validation Metrics
 
-Two independently selected stock drone videos were used as external, unseen-domain tests:
+| Metric   |     Result |
+| -------- | ---------: |
+| Accuracy | **75.86%** |
+| Macro F1 | **0.7717** |
 
-* a suburban residential flyover;
-* a top-down Central Park aerial video.
+### Per-Class Results
 
-Frames were extracted at approximately 20%, 50% and 80% of each video. All six frames completed the full pipeline successfully.
+| Class    | Precision | Recall |         F1 |
+| -------- | --------: | -----: | ---------: |
+| Building |    0.6250 | 0.6410 |     0.6329 |
+| Car      |    0.8000 | 0.9600 | **0.8727** |
+| Other    |    0.7952 | 0.6804 |     0.7333 |
+| Tree     |    0.7800 | 0.9286 | **0.8478** |
 
-Scene	Frame	SAM segments	Final detections	Building	Car	Tree	Other
-Central Park	20%	5	2	0	0	1	1
-Central Park	50%	6	2	0	0	0	2
-Central Park	80%	5	1	0	0	0	1
-Suburbs	20%	13	6	0	0	6	0
-Suburbs	50%	26	14	0	0	8	6
-Suburbs	80%	21	10	0	0	5	5
+The strongest validation performance is currently obtained for:
 
-These runs verify that the complete system works on previously unseen drone footage. They are not formal external accuracy measurements because the stock-video frames do not have ground-truth annotations.
+1. **Cars**
+2. **Trees**
 
-See docs/final_evaluation.md for the detailed evaluation, interpretation and limitations.
+Building classification remains more sensitive to:
 
-Repository Structure
+* Roof scale
+* Surrounding vegetation
+* Shadows
+* Viewing angle
+* Domain shift
 
-configs/                 SAM, classifier and pipeline configurations
-data/manifests/          Reproducible source splits and crop labels
-docs/                    Documentation and evaluation report
-requirements/            Module-specific Python dependencies
-scripts/                 Dataset and labeling workflow utilities
-src/classification/      Classifier training and inference
-src/data/                Dataset analysis and preprocessing
-src/segmentation/        SAM loading, tiling, filtering and crop export
-src/visualization/       Prediction visualization
-src/pipeline.py          Prediction merging and output generation
-src/run_pipeline.py      End-to-end command-line runner
-tests/                   Unit and integration tests
+---
 
-Installation
+## 🎥 External DroneStock Evaluation
 
-Python 3.12 was used during development.
+Two independently selected stock drone videos were used as **external unseen-domain tests**:
 
-Create and activate a virtual environment:
+* Suburban residential flyover
+* Top-down Central Park aerial video
 
+Frames were extracted at approximately:
+
+* **20%**
+* **50%**
+* **80%**
+
+of each video.
+
+All six extracted frames successfully completed the full segmentation and classification pipeline.
+
+### Results
+
+| Scene        | Frame | SAM Segments | Final Detections | Building | Car | Tree | Other |
+| ------------ | ----: | -----------: | ---------------: | -------: | --: | ---: | ----: |
+| Central Park |   20% |            5 |                2 |        0 |   0 |    1 |     1 |
+| Central Park |   50% |            6 |                2 |        0 |   0 |    0 |     2 |
+| Central Park |   80% |            5 |                1 |        0 |   0 |    0 |     1 |
+| Suburbs      |   20% |           13 |                6 |        0 |   0 |    6 |     0 |
+| Suburbs      |   50% |           26 |               14 |        0 |   0 |    8 |     6 |
+| Suburbs      |   80% |           21 |               10 |        0 |   0 |    5 |     5 |
+
+These runs verify that the complete system can execute successfully on **previously unseen drone footage**.
+
+> [!IMPORTANT]
+> These results should **not** be interpreted as formal external accuracy measurements because the DroneStock frames do not contain ground-truth annotations.
+
+For the complete evaluation, interpretation and limitations, see:
+
+```text
+docs/final_evaluation.md
+```
+
+---
+
+## 📁 Repository Structure
+
+```text
+.
+├── configs/
+│   └── SAM, classifier and pipeline configurations
+│
+├── data/
+│   └── manifests/
+│       └── Reproducible source splits and crop labels
+│
+├── docs/
+│   └── Documentation and evaluation reports
+│
+├── requirements/
+│   └── Module-specific Python dependencies
+│
+├── scripts/
+│   └── Dataset and labeling workflow utilities
+│
+├── src/
+│   ├── classification/
+│   │   └── Classifier training and inference
+│   │
+│   ├── data/
+│   │   └── Dataset analysis and preprocessing
+│   │
+│   ├── segmentation/
+│   │   └── SAM loading, tiling, filtering and crop export
+│   │
+│   ├── visualization/
+│   │   └── Prediction visualization
+│   │
+│   ├── pipeline.py
+│   │   └── Prediction merging and output generation
+│   │
+│   └── run_pipeline.py
+│       └── End-to-end command-line runner
+│
+└── tests/
+    └── Unit and integration tests
+```
+
+---
+
+# ⚙️ Installation
+
+## Requirements
+
+Development was performed using:
+
+```text
+Python 3.12
+```
+
+Create a virtual environment:
+
+```bash
 python3 -m venv .venv
+```
+
+Activate it:
+
+```bash
 source .venv/bin/activate
+```
+
+Upgrade `pip`:
+
+```bash
 python -m pip install --upgrade pip
+```
 
-Install the project dependencies:
+---
 
+## 📦 Install Project Dependencies
+
+Install each dependency group:
+
+```bash
 python -m pip install -r requirements/data.txt
 python -m pip install -r requirements/sam.txt
 python -m pip install -r requirements/classifier.txt
 python -m pip install -r requirements/integration.txt
+```
 
-Install the official SAM 2 package:
+---
 
+## 🧩 Install SAM 2
+
+Clone the official SAM 2 repository:
+
+```bash
 git clone https://github.com/facebookresearch/sam2.git sam2_repo
-SAM2_BUILD_CUDA=0 python -m pip install -e ./sam2_repo
+```
 
-Model Checkpoints
+Install it:
+
+```bash
+SAM2_BUILD_CUDA=0 python -m pip install -e ./sam2_repo
+```
+
+---
+
+# 📥 Model Checkpoints
 
 Create the checkpoint directory:
 
+```bash
 mkdir -p checkpoints
+```
 
-Download the official SAM 2.1 Hiera Small checkpoint:
+## SAM 2.1 Checkpoint
 
+Download the official **SAM 2.1 Hiera Small** checkpoint:
+
+```bash
 curl -L --fail \
   "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt" \
   -o checkpoints/sam2.1_hiera_small.pt
+```
 
-The trained classifier checkpoint must be placed at:
+---
 
+## Classifier Checkpoint
+
+Place the trained classifier checkpoint at:
+
+```text
 checkpoints/classifier.pt
+```
 
-Model checkpoint files are excluded from Git because of their size. The classifier baseline should be downloaded from the project’s GitHub Release assets or provided separately.
+> [!NOTE]
+> Model checkpoint files are excluded from Git because of their size.
 
-Run the End-to-End Pipeline
+The classifier baseline should be downloaded from the project's **GitHub Release assets** or provided separately.
 
-Run the default pipeline on an image:
+---
 
+# ▶️ Run the End-to-End Pipeline
+
+## Default Image Pipeline
+
+Run the pipeline on a drone image:
+
+```bash
 PYTORCH_ENABLE_MPS_FALLBACK=1 \
 python -m src.run_pipeline \
   path/to/drone_image.jpg \
@@ -168,9 +350,15 @@ python -m src.run_pipeline \
   --classifier-config configs/classifier.yaml \
   --pipeline-config configs/pipeline.yaml \
   --checkpoint checkpoints/classifier.pt
+```
 
-Run the configuration used for the external DroneStock frames:
+---
 
+## DroneStock Configuration
+
+Run the configuration used for external DroneStock evaluation:
+
+```bash
 PYTORCH_ENABLE_MPS_FALLBACK=1 \
 python -m src.run_pipeline \
   path/to/extracted_frame.jpg \
@@ -178,73 +366,179 @@ python -m src.run_pipeline \
   --classifier-config configs/classifier.yaml \
   --pipeline-config configs/pipeline_dronestock.yaml \
   --checkpoint checkpoints/classifier.pt
+```
 
-PYTORCH_ENABLE_MPS_FALLBACK=1 is useful on Apple Silicon. It may be omitted on CPU or CUDA systems.
+> [!TIP]
+> `PYTORCH_ENABLE_MPS_FALLBACK=1` is useful when running the project on Apple Silicon.
+>
+> It can normally be omitted on CPU or CUDA-based systems.
 
-Generated files are written to the output directories configured in the SAM and pipeline YAML files.
+---
+
+## 📂 Generated Files
+
+Generated files are written to the output directories configured inside the SAM and pipeline YAML configuration files.
 
 Typical outputs include:
 
-outputs/crops/
-outputs/segmentation_results.json
-outputs/json/<image_name>.json
-outputs/predictions/<image_name>_annotated.jpg
+```text
+outputs/
+├── crops/
+├── segmentation_results.json
+├── json/
+│   └── <image_name>.json
+└── predictions/
+    └── <image_name>_annotated.jpg
+```
 
-Train the Classifier
+---
 
-The dataset must follow this directory structure:
+# 🏋️ Train the Classifier
 
+The classifier dataset must follow this directory structure:
+
+```text
 data/classifier/
 ├── train/
 │   ├── building/
 │   ├── car/
 │   ├── other/
 │   └── tree/
+│
 └── validation/
     ├── building/
     ├── car/
     ├── other/
     └── tree/
+```
 
 Start training:
 
+```bash
 PYTORCH_ENABLE_MPS_FALLBACK=1 \
 python -m src.classification.train \
   --config configs/classifier.yaml \
   --device auto
+```
 
-The best checkpoint is saved according to the checkpoint path in configs/classifier.yaml.
+The best-performing checkpoint is saved according to the checkpoint path configured in:
 
-Tests
+```text
+configs/classifier.yaml
+```
+
+---
+
+# 🧪 Tests
+
+Compile the source files:
+
+```bash
+python -m compileall -q src scripts
+```
 
 Run the complete test suite:
 
-python -m compileall -q src scripts
+```bash
 python -m pytest tests -q
+```
 
-Latest verified result:
+### Latest Verified Result
 
+```text
 39 passed, 1 skipped
+```
 
-The skipped test requires the real SAM 2 video predictor and its external assets.
+The skipped test requires the real **SAM 2 video predictor** and its external assets.
 
-Current Limitations
+---
 
-* The classifier was trained on 490 labeled crops rather than the entire 307-image ArcGIS dataset.
-* The building class requires more diverse roofs, scales and lighting conditions.
-* Small cars may not be proposed by SAM when the external video resolution or viewing altitude differs significantly from the training data.
-* SAM automatic mask generation can miss objects or produce large mixed-content regions.
-* The DroneStock evaluation demonstrates external execution but does not provide formal accuracy without ground-truth labels.
+# ⚠️ Current Limitations
+
+The current implementation has several known limitations:
+
+* The classifier was trained on **490 labeled crops**, rather than crops generated from the entire **307-image ArcGIS dataset**.
+* The `building` class requires more diverse roof types, scales and lighting conditions.
+* Small cars may not be proposed by SAM when external video resolution or flight altitude differs significantly from the training domain.
+* SAM automatic mask generation can miss objects.
+* SAM may occasionally generate large masks containing mixed semantic content.
+* The DroneStock evaluation demonstrates successful external pipeline execution but does not provide formal accuracy measurements without ground-truth labels.
 * Model checkpoints and original datasets must be downloaded separately.
 
-Future Work
+---
 
-Recommended next steps:
+# 🚀 Future Work
 
-* generate and label crops from more of the 307 ArcGIS source images;
-* add more geographically separated training, validation and test regions;
-* improve building and small-object coverage;
-* tune SAM parameters for different video resolutions and flight altitudes;
-* evaluate on manually annotated external DroneStock frames;
-* add temporal tracking and smoothing for continuous video output;
-* publish versioned classifier checkpoints through GitHub Releases.
+Recommended next steps include:
+
+* [ ] Generate and label crops from more of the **307 ArcGIS source images**
+* [ ] Add geographically separated training, validation and test regions
+* [ ] Improve `building` class diversity
+* [ ] Improve small-object and small-vehicle coverage
+* [ ] Tune SAM parameters for different flight altitudes
+* [ ] Tune SAM parameters for different video resolutions
+* [ ] Evaluate manually annotated external DroneStock frames
+* [ ] Add temporal object tracking
+* [ ] Add prediction smoothing for continuous video
+* [ ] Publish versioned classifier checkpoints through **GitHub Releases**
+
+---
+
+## 🛠️ Technologies
+
+Main technologies used in the project:
+
+* Python
+* PyTorch
+* SAM 2.1
+* MobileNetV3-Small
+* torchvision
+* OpenCV
+* NumPy
+* Pydantic
+* YAML
+* pytest
+
+---
+
+## 📚 Documentation
+
+Additional project documentation is available inside:
+
+```text
+docs/
+```
+
+Including the detailed external evaluation:
+
+```text
+docs/final_evaluation.md
+```
+
+---
+
+## ✅ Project Status
+
+The current pipeline successfully supports:
+
+```text
+Drone Image
+    ↓
+SAM Segmentation
+    ↓
+Mask Filtering
+    ↓
+Bounding Boxes
+    ↓
+Object Crops
+    ↓
+MobileNetV3 Classification
+    ↓
+Confidence Filtering
+    ↓
+Visualization
+    ↓
+JSON Predictions
+```
+
+The end-to-end system has been verified on both the development dataset and previously unseen external drone footage.
